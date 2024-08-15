@@ -1,7 +1,11 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
+
+#define NN_IMPLEMENTATION
+#include "nn.h"
 
 #define TRAINING_IMAGES_PATH "./training_data/training_images"
 #define TRAINING_LABELS_PATH "./training_data/training_labels"
@@ -39,7 +43,7 @@ void load_into_buffer(char *file_path, int metadata_len, int metadata[], int uni
   
   read(file_descriptor, metadata, metadata_len * sizeof(int));
     
-  for (int i = 0; i < data_num; i++) {
+  for (size_t i = 0; i < data_num; i++) {
     read(file_descriptor, buffer[i], unit_len * sizeof(unsigned char));   
   }
 
@@ -49,15 +53,15 @@ void load_into_buffer(char *file_path, int metadata_len, int metadata[], int uni
 
 void save_buffer_to_images_matrix(int data_num, unsigned char buffer[][IMAGE_UNIT_LEN], float images_matrix[][IMAGE_UNIT_LEN])
 {
-  for (int i = 0; i < data_num; i++)
-    for (int j = 0; j < IMAGE_UNIT_LEN; j++)
+  for (size_t i = 0; i < data_num; i++)
+    for (size_t j = 0; j < IMAGE_UNIT_LEN; j++)
       images_matrix[i][j]  = (float) buffer[i][j] / 255.0f;
 }
 
 
 void save_buffer_to_labels(int data_num, unsigned char buffer[][LABEL_UNIT_LEN], int labels[])
 {
-  for (int i = 0; i < data_num; i++)
+  for (size_t i = 0; i < data_num; i++)
     labels[i]  = (int) buffer[i][0];
 }
 
@@ -76,12 +80,26 @@ int main(void)
   load_into_buffer(TEST_LABELS_PATH, LABEL_METADATA_LEN, label_metadata, LABEL_UNIT_LEN, TEST_IMAGES_NUM, test_labels_buffer);
   save_buffer_to_labels(TEST_IMAGES_NUM, test_labels_buffer, test_labels);
 
-  for (int i = 0; i < 784; i++) {
-    printf("%1.1f ", test_images_matrix[999][i]);
-    if ( (i + 1) % 28 == 0) printf("\n");
-  }
+//  for (size_t i = 0; i < 784; i++) {
+//    printf("%1.1f ", test_images_matrix[999][i]);
+//    if ( (i + 1) % 28 == 0) printf("\n");
+//  }
+//
+//  printf("label: %d\n", test_labels[999]);
 
-  printf("label: %d\n", test_labels[999]);
+  srand(time(0));
+  Matrix a = matrix_alloc(1, 2);
+  matrix_rand(a, 5, 10);
+  matrix_print(a, "a");
+
+  Matrix b = matrix_alloc(2, 5);
+  matrix_fill(b, 2);
+  matrix_print(b, "b");
+
+  Matrix dst = matrix_alloc(1, 5);
+
+  matrix_dot(dst, a, b);
+  matrix_print(dst, "dst");
 
   return 0;
 }
