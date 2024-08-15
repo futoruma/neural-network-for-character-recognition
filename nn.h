@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdio.h>
+#include <math.h>
 
 #ifndef NN_MALLOC
 #include <stdlib.h>
@@ -23,17 +24,27 @@ typedef struct {
 #define MATRIX_AT(matrix, i, j) (matrix).es[(i) * (matrix).cols + (j)] 
 
 float rand_float(void);
+float sigmoidf(float x);
 
 Matrix matrix_alloc(size_t rows, size_t cols);
 void matrix_fill(Matrix matrix, float x);
 void matrix_rand(Matrix matrix, float low, float high);
+Matrix matrix_row(Matrix matrix, size_t row);
+void matrix_copy(Matrix dst, Matrix src);
 void matrix_dot(Matrix dst, Matrix a, Matrix b);
 void matrix_sum(Matrix dst, Matrix a);
-void matrix_print(Matrix matrix);
+void matrix_sig(Matrix matrix);
+void matrix_print(Matrix matrix, const char *name);
+#define MATRIX_PRINT(m) matrix_print(m, #m)
 
 #endif // NN_H_
 
 #ifdef NN_IMPLEMENTATION
+
+float sigmoidf(float x)
+{
+  return 1.f / (1.f + expf(-x));
+}
 
 float rand_float(void)
 {
@@ -65,6 +76,26 @@ void matrix_dot(Matrix dst, Matrix a, Matrix b)
   }
 }
 
+Matrix matrix_row(Matrix matrix, size_t row)
+{
+  return (Matrix){
+    .rows = 1,
+    .cols = matrix.cols,
+    .es = &MATRIX_AT(matrix, row, 0)
+  };
+}
+
+void matrix_copy(Matrix dst, Matrix src)
+{
+  NN_ASSERT(dst.rows == src.rows);
+  NN_ASSERT(dst.cols == src.cols);
+  for (size_t i = 0; i < dst.rows; i++) {
+    for (size_t j = 0; j < dst.cols; j++) {
+      MATRIX_AT(dst, i, j) = MATRIX_AT(src, i, j);
+    }
+  }
+}
+
 void matrix_sum(Matrix dst, Matrix a)
 {
   NN_ASSERT(dst.rows == a.rows);
@@ -76,14 +107,25 @@ void matrix_sum(Matrix dst, Matrix a)
   }
 }
 
-void matrix_print(Matrix matrix)
+void matrix_sig(Matrix matrix)
 {
+  for (size_t i = 0; i < matrix.rows; i++) {
+    for (size_t j = 0; j < matrix.cols; j++) {
+      MATRIX_AT(matrix, i, j) = sigmoidf(MATRIX_AT(matrix, i, j));
+    }
+  }
+}
+
+void matrix_print(Matrix matrix, const char *name)
+{
+  printf("%s = [\n", name);
   for (size_t i = 0; i < matrix.rows; i++) {
     for (size_t j = 0; j < matrix.cols; j++) {
       printf("%f ", MATRIX_AT(matrix, i, j));
     }
     printf("\n");
   }
+  printf("]\n");
 }
 
 void matrix_fill(Matrix matrix, float x)
