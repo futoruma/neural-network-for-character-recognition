@@ -34,6 +34,7 @@ void matrix_copy(Matrix dst, Matrix src);
 void matrix_dot(Matrix dst, Matrix a, Matrix b);
 void matrix_sum(Matrix dst, Matrix a);
 void matrix_sig(Matrix matrix);
+void matrix_softmax(Matrix matrix);
 void matrix_print(Matrix matrix, const char *name);
 #define MATRIX_PRINT(m) matrix_print(m, #m)
 
@@ -112,6 +113,32 @@ void matrix_sig(Matrix matrix)
   for (size_t i = 0; i < matrix.rows; i++) {
     for (size_t j = 0; j < matrix.cols; j++) {
       MATRIX_AT(matrix, i, j) = sigmoidf(MATRIX_AT(matrix, i, j));
+    }
+  }
+}
+
+void matrix_softmax(Matrix matrix)
+{
+  float max_value = 0;
+  for (size_t i = 0; i < matrix.rows; i++) {
+    for (size_t j = 0; j < matrix.cols; j++) {
+      if (MATRIX_AT(matrix, i, j) > max_value) {
+        max_value = MATRIX_AT(matrix, i, j);
+      }
+    }
+  }
+    
+  float exp_sum = 0;
+  for (size_t i = 0; i < matrix.rows; i++) {
+    for (size_t j = 0; j < matrix.cols; j++) {
+      MATRIX_AT(matrix, i, j) = expf(MATRIX_AT(matrix, i, j) - max_value);
+      exp_sum += MATRIX_AT(matrix, i, j);
+    }
+  }
+
+  for (size_t i = 0; i < matrix.rows; i++) {
+    for (size_t j = 0; j < matrix.cols; j++) {
+      MATRIX_AT(matrix, i, j) /= exp_sum;
     }
   }
 }
