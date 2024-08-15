@@ -70,6 +70,27 @@ typedef struct {
   Matrix w3, b3, a3;
 } Model;
 
+Model model_alloc(void)
+{
+  Model model;
+
+  model.a0 = matrix_alloc(1, 784);
+
+  model.w1 = matrix_alloc(784, 18);
+  model.b1 = matrix_alloc(1, 18);
+  model.a1 = matrix_alloc(1, 18);
+
+  model.w2 = matrix_alloc(18, 18);
+  model.b2 = matrix_alloc(1, 18);
+  model.a2 = matrix_alloc(1, 18);
+
+  model.w3 = matrix_alloc(18, 10);
+  model.b3 = matrix_alloc(1, 10);
+  model.a3 = matrix_alloc(1, 10);
+
+  return model;
+}
+
 void forward(Model model)
 {
   matrix_dot(model.a1, model.a0, model.w1);
@@ -108,6 +129,100 @@ float cost(Model model, int data_num, float images[][IMAGE_UNIT_LEN], int labels
   return cost / data_num;
 }
 
+void finite_diff(Model model, Model gradient, float eps, float images[][IMAGE_UNIT_LEN], int labels[])
+{
+  float saved;
+  float c = cost(model, 100, training_images, training_labels);
+
+  for (size_t i = 0; i < model.w1.rows; i++) {
+    for (size_t j = 0; j < model.w1.cols; j++) {
+      saved = MATRIX_AT(model.w1, i, j);
+      MATRIX_AT(model.w1, i, j) += eps;
+      MATRIX_AT(gradient.w1, i, j) = (cost(model, 100, training_images, training_labels) - c) / eps; 
+      MATRIX_AT(model.w1, i, j) = saved;
+    }
+  }
+
+  for (size_t i = 0; i < model.b1.rows; i++) {
+    for (size_t j = 0; j < model.b1.cols; j++) {
+      saved = MATRIX_AT(model.b1, i, j);
+      MATRIX_AT(model.b1, i, j) += eps;
+      MATRIX_AT(gradient.b1, i, j) = (cost(model, 100, training_images, training_labels) - c) / eps; 
+      MATRIX_AT(model.b1, i, j) = saved;
+    }
+  }
+
+  for (size_t i = 0; i < model.w2.rows; i++) {
+    for (size_t j = 0; j < model.w2.cols; j++) {
+      saved = MATRIX_AT(model.w2, i, j);
+      MATRIX_AT(model.w2, i, j) += eps;
+      MATRIX_AT(gradient.w2, i, j) = (cost(model, 100, training_images, training_labels) - c) / eps; 
+      MATRIX_AT(model.w2, i, j) = saved;
+    }
+  }
+
+  for (size_t i = 0; i < model.b2.rows; i++) {
+    for (size_t j = 0; j < model.b2.cols; j++) {
+      saved = MATRIX_AT(model.b2, i, j);
+      MATRIX_AT(model.b2, i, j) += eps;
+      MATRIX_AT(gradient.b2, i, j) = (cost(model, 100, training_images, training_labels) - c) / eps; 
+      MATRIX_AT(model.b2, i, j) = saved;
+    }
+  }
+
+  for (size_t i = 0; i < model.w3.rows; i++) {
+    for (size_t j = 0; j < model.w3.cols; j++) {
+      saved = MATRIX_AT(model.w3, i, j);
+      MATRIX_AT(model.w3, i, j) += eps;
+      MATRIX_AT(gradient.w3, i, j) = (cost(model, 100, training_images, training_labels) - c) / eps; 
+      MATRIX_AT(model.w3, i, j) = saved;
+    }
+  }
+
+  for (size_t i = 0; i < model.b3.rows; i++) {
+    for (size_t j = 0; j < model.b3.cols; j++) {
+      saved = MATRIX_AT(model.b3, i, j);
+      MATRIX_AT(model.b3, i, j) += eps;
+      MATRIX_AT(gradient.b3, i, j) = (cost(model, 100, training_images, training_labels) - c) / eps; 
+      MATRIX_AT(model.b3, i, j) = saved;
+    }
+  }
+}
+
+void learn(Model model, Model gradient, float rate)
+{
+  for (size_t i = 0; i < model.w1.rows; i++) {
+    for (size_t j = 0; j < model.w1.cols; j++) {
+      MATRIX_AT(model.w1, i, j) -= rate * MATRIX_AT(gradient.w1, i, j);
+    }
+  }
+  for (size_t i = 0; i < model.b1.rows; i++) {
+    for (size_t j = 0; j < model.b1.cols; j++) {
+      MATRIX_AT(model.b1, i, j) -= rate * MATRIX_AT(gradient.b1, i, j);
+    }
+  }
+  for (size_t i = 0; i < model.w2.rows; i++) {
+    for (size_t j = 0; j < model.w2.cols; j++) {
+      MATRIX_AT(model.w2, i, j) -= rate * MATRIX_AT(gradient.w2, i, j);
+    }
+  }
+  for (size_t i = 0; i < model.b2.rows; i++) {
+    for (size_t j = 0; j < model.b2.cols; j++) {
+      MATRIX_AT(model.b2, i, j) -= rate * MATRIX_AT(gradient.b2, i, j);
+    }
+  }
+  for (size_t i = 0; i < model.w3.rows; i++) {
+    for (size_t j = 0; j < model.w3.cols; j++) {
+      MATRIX_AT(model.w3, i, j) -= rate * MATRIX_AT(gradient.w3, i, j);
+    }
+  }
+  for (size_t i = 0; i < model.b3.rows; i++) {
+    for (size_t j = 0; j < model.b3.cols; j++) {
+      MATRIX_AT(model.b3, i, j) -= rate * MATRIX_AT(gradient.b3, i, j);
+    }
+  }
+}
+
 int main(void)
 {  
   load_into_buffer(TRAINING_IMAGES_PATH, IMAGES_METADATA_LEN, images_metadata, IMAGE_UNIT_LEN, TRAINING_IMAGES_NUM, training_images_buffer);
@@ -124,21 +239,8 @@ int main(void)
 
   srand(time(0));
 
-  Model model;
-
-  model.a0 = matrix_alloc(1, 784);
-
-  model.w1 = matrix_alloc(784, 18);
-  model.b1 = matrix_alloc(1, 18);
-  model.a1 = matrix_alloc(1, 18);
-
-  model.w2 = matrix_alloc(18, 18);
-  model.b2 = matrix_alloc(1, 18);
-  model.a2 = matrix_alloc(1, 18);
-
-  model.w3 = matrix_alloc(18, 10);
-  model.b3 = matrix_alloc(1, 10);
-  model.a3 = matrix_alloc(1, 10);
+  Model model = model_alloc();
+  Model gradient = model_alloc();
 
   matrix_rand(model.w1, 0, 1);
   matrix_rand(model.b1, 0, 1);
@@ -147,8 +249,14 @@ int main(void)
   matrix_rand(model.w3, 0, 1);
   matrix_rand(model.b3, 0, 1);
 
+  float eps = 0.1f;
+  float rate = 0.1f;
+
   printf("cost = %f\n", cost(model, 100, training_images, training_labels));
- 
+  finite_diff(model, gradient, eps, training_images, training_labels);
+  learn(model, gradient, rate);
+  printf("cost = %f\n", cost(model, 100, training_images, training_labels));
+
   MATRIX_PRINT(model.a3);
 
   return 0;
