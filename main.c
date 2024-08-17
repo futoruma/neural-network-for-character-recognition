@@ -96,7 +96,7 @@ float cost(NN nn, int data_num, float images[][IMAGE_UNIT_LEN], int labels[])
 void finite_diff(NN nn, NN gradient, float images[][IMAGE_UNIT_LEN], int labels[])
 {
   float saved;
-  float c = cost(nn, 100, training_images, training_labels);
+  float c = cost(nn, TRAINING_IMAGES_NUM, training_images, training_labels);
 
   for (size_t l = 0; l < nn.count; l++) {
     
@@ -104,7 +104,7 @@ void finite_diff(NN nn, NN gradient, float images[][IMAGE_UNIT_LEN], int labels[
       for (size_t j = 0; j < nn.ws[l].cols; j++) {
         saved = MATRIX_AT(nn.ws[l], i, j);
         MATRIX_AT(nn.ws[l], i, j) += EPS;
-        MATRIX_AT(gradient.ws[l], i, j) = (cost(nn, 100, training_images, training_labels) - c) / EPS; 
+        MATRIX_AT(gradient.ws[l], i, j) = (cost(nn, TRAINING_IMAGES_NUM, training_images, training_labels) - c) / EPS; 
         MATRIX_AT(nn.ws[l], i, j) = saved;
       }
     }
@@ -113,7 +113,7 @@ void finite_diff(NN nn, NN gradient, float images[][IMAGE_UNIT_LEN], int labels[
       for (size_t j = 0; j < nn.bs[l].cols; j++) {
         saved = MATRIX_AT(nn.bs[l], i, j);
         MATRIX_AT(nn.bs[l], i, j) += EPS;
-        MATRIX_AT(gradient.bs[l], i, j) = (cost(nn, 100, training_images, training_labels) - c) / EPS; 
+        MATRIX_AT(gradient.bs[l], i, j) = (cost(nn, TRAINING_IMAGES_NUM, training_images, training_labels) - c) / EPS; 
         MATRIX_AT(nn.bs[l], i, j) = saved;
       }
     }
@@ -160,11 +160,11 @@ int main(void)
 
   nn_rand(nn, 0, 1);
 
-  printf("cost = %f\n", cost(nn, 100, training_images, training_labels));
+  printf("cost = %f\n", cost(nn, TRAINING_IMAGES_NUM, training_images, training_labels));
   finite_diff(nn, gradient, training_images, training_labels);
   
   learn(nn, gradient);
-  printf("cost = %f\n", cost(nn, 100, training_images, training_labels));
+  printf("cost = %f\n", cost(nn, TRAINING_IMAGES_NUM, training_images, training_labels));
 
   MATRIX_PRINT(NN_OUTPUT(nn));
 
