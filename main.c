@@ -63,65 +63,30 @@ void save_buffer_to_labels(int data_num, unsigned char buffer[][LABEL_UNIT_LEN],
     labels[i]  = (int) buffer[i][0];
 }
 
-typedef struct {
-  Matrix a0;
-  Matrix w1, b1, a1;
-  Matrix w2, b2, a2;
-  Matrix w3, b3, a3;
-} Model;
-
-Model model_alloc(void)
+void nn_forward(NN nn)
 {
-  Model model;
-
-  model.a0 = matrix_alloc(1, 784);
-
-  model.w1 = matrix_alloc(784, 18);
-  model.b1 = matrix_alloc(1, 18);
-  model.a1 = matrix_alloc(1, 18);
-
-  model.w2 = matrix_alloc(18, 18);
-  model.b2 = matrix_alloc(1, 18);
-  model.a2 = matrix_alloc(1, 18);
-
-  model.w3 = matrix_alloc(18, 10);
-  model.b3 = matrix_alloc(1, 10);
-  model.a3 = matrix_alloc(1, 10);
-
-  return model;
+  for (size_t i = 0; i < nn.count; i++) {
+    matrix_dot(nn.as[i+1], nn.as[i], nn.ws[i]);
+    matrix_sum(nn.as[i+1], nn.bs[i]);
+    (i + 1) == nn.count ? matrix_softmax(nn.as[i+1]) : matrix_sig(nn.as[i+1]);
+  }
 }
 
-void forward(Model model)
-{
-  matrix_dot(model.a1, model.a0, model.w1);
-  matrix_sum(model.a1, model.b1);
-  matrix_sig(model.a1);
-  
-  matrix_dot(model.a2, model.a1, model.w2);
-  matrix_sum(model.a2, model.b2);
-  matrix_sig(model.a2);
-
-  matrix_dot(model.a3, model.a2, model.w3);
-  matrix_sum(model.a3, model.b3);
-  matrix_softmax(model.a3);
-}
-
-float cost(Model model, int data_num, float images[][IMAGE_UNIT_LEN], int labels[])
+float cost(NN nn, int data_num, float images[][IMAGE_UNIT_LEN], int labels[])
 {
   float cost = 0;
   for (size_t i = 0; i < data_num; i++) {
-    
     for (size_t j = 0; j < IMAGE_UNIT_LEN; j++) {
-      MATRIX_AT(model.a0, 0, j) = images[i][j];
+      MATRIX_AT(NN_INPUT(nn), 0, j) = images[i][j];
     }
 
-    forward(model);
+    nn_forward(nn);
 
     int correct_digit = labels[i];
-    MATRIX_AT(model.a3, 0, correct_digit) -= 1.0f;
+    MATRIX_AT(NN_OUTPUT(nn), 0, correct_digit) -= 1.0f;
 
     for (size_t j = 0; j < DIGITS; j++) {
-      float diff = MATRIX_AT(model.a3, 0, j);
+      float diff = MATRIX_AT(NN_OUTPUT(nn), 0, j);
       cost += diff * diff;
     }
   }
@@ -129,96 +94,47 @@ float cost(Model model, int data_num, float images[][IMAGE_UNIT_LEN], int labels
   return cost / data_num;
 }
 
-void finite_diff(Model model, Model gradient, float eps, float images[][IMAGE_UNIT_LEN], int labels[])
+void finite_diff(NN nn, NN gradient, float eps, float images[][IMAGE_UNIT_LEN], int labels[])
 {
   float saved;
-  float c = cost(model, 100, training_images, training_labels);
+  float c = cost(nn, 100, training_images, training_labels);
 
-  for (size_t i = 0; i < model.w1.rows; i++) {
-    for (size_t j = 0; j < model.w1.cols; j++) {
-      saved = MATRIX_AT(model.w1, i, j);
-      MATRIX_AT(model.w1, i, j) += eps;
-      MATRIX_AT(gradient.w1, i, j) = (cost(model, 100, training_images, training_labels) - c) / eps; 
-      MATRIX_AT(model.w1, i, j) = saved;
+  for (size_t l = 0; l < nn.count; l++) {
+    
+    for (size_t i = 0; i < nn.ws[l].rows; i++) {
+      for (size_t j = 0; j < nn.ws[l].cols; j++) {
+        saved = MATRIX_AT(nn.ws[l], i, j);
+        MATRIX_AT(nn.ws[l], i, j) += eps;
+        MATRIX_AT(gradient.ws[l], i, j) = (cost(nn, 100, training_images, training_labels) - c) / eps; 
+        MATRIX_AT(nn.ws[l], i, j) = saved;
+      }
     }
-  }
-
-  for (size_t i = 0; i < model.b1.rows; i++) {
-    for (size_t j = 0; j < model.b1.cols; j++) {
-      saved = MATRIX_AT(model.b1, i, j);
-      MATRIX_AT(model.b1, i, j) += eps;
-      MATRIX_AT(gradient.b1, i, j) = (cost(model, 100, training_images, training_labels) - c) / eps; 
-      MATRIX_AT(model.b1, i, j) = saved;
-    }
-  }
-
-  for (size_t i = 0; i < model.w2.rows; i++) {
-    for (size_t j = 0; j < model.w2.cols; j++) {
-      saved = MATRIX_AT(model.w2, i, j);
-      MATRIX_AT(model.w2, i, j) += eps;
-      MATRIX_AT(gradient.w2, i, j) = (cost(model, 100, training_images, training_labels) - c) / eps; 
-      MATRIX_AT(model.w2, i, j) = saved;
-    }
-  }
-
-  for (size_t i = 0; i < model.b2.rows; i++) {
-    for (size_t j = 0; j < model.b2.cols; j++) {
-      saved = MATRIX_AT(model.b2, i, j);
-      MATRIX_AT(model.b2, i, j) += eps;
-      MATRIX_AT(gradient.b2, i, j) = (cost(model, 100, training_images, training_labels) - c) / eps; 
-      MATRIX_AT(model.b2, i, j) = saved;
-    }
-  }
-
-  for (size_t i = 0; i < model.w3.rows; i++) {
-    for (size_t j = 0; j < model.w3.cols; j++) {
-      saved = MATRIX_AT(model.w3, i, j);
-      MATRIX_AT(model.w3, i, j) += eps;
-      MATRIX_AT(gradient.w3, i, j) = (cost(model, 100, training_images, training_labels) - c) / eps; 
-      MATRIX_AT(model.w3, i, j) = saved;
-    }
-  }
-
-  for (size_t i = 0; i < model.b3.rows; i++) {
-    for (size_t j = 0; j < model.b3.cols; j++) {
-      saved = MATRIX_AT(model.b3, i, j);
-      MATRIX_AT(model.b3, i, j) += eps;
-      MATRIX_AT(gradient.b3, i, j) = (cost(model, 100, training_images, training_labels) - c) / eps; 
-      MATRIX_AT(model.b3, i, j) = saved;
+    
+    for (size_t i = 0; i < nn.bs[l].rows; i++) {
+      for (size_t j = 0; j < nn.bs[l].cols; j++) {
+        saved = MATRIX_AT(nn.bs[l], i, j);
+        MATRIX_AT(nn.bs[l], i, j) += eps;
+        MATRIX_AT(gradient.bs[l], i, j) = (cost(nn, 100, training_images, training_labels) - c) / eps; 
+        MATRIX_AT(nn.bs[l], i, j) = saved;
+      }
     }
   }
 }
 
-void learn(Model model, Model gradient, float rate)
+void learn(NN nn, NN gradient, float rate)
 {
-  for (size_t i = 0; i < model.w1.rows; i++) {
-    for (size_t j = 0; j < model.w1.cols; j++) {
-      MATRIX_AT(model.w1, i, j) -= rate * MATRIX_AT(gradient.w1, i, j);
+  for (size_t l = 0; l < nn.count; l++) {
+    
+    for (size_t i = 0; i < nn.ws[l].rows; i++) {
+      for (size_t j = 0; j < nn.ws[l].cols; j++) {
+        MATRIX_AT(nn.ws[l], i, j) -= rate * MATRIX_AT(gradient.ws[l], i, j);
+      }
     }
-  }
-  for (size_t i = 0; i < model.b1.rows; i++) {
-    for (size_t j = 0; j < model.b1.cols; j++) {
-      MATRIX_AT(model.b1, i, j) -= rate * MATRIX_AT(gradient.b1, i, j);
-    }
-  }
-  for (size_t i = 0; i < model.w2.rows; i++) {
-    for (size_t j = 0; j < model.w2.cols; j++) {
-      MATRIX_AT(model.w2, i, j) -= rate * MATRIX_AT(gradient.w2, i, j);
-    }
-  }
-  for (size_t i = 0; i < model.b2.rows; i++) {
-    for (size_t j = 0; j < model.b2.cols; j++) {
-      MATRIX_AT(model.b2, i, j) -= rate * MATRIX_AT(gradient.b2, i, j);
-    }
-  }
-  for (size_t i = 0; i < model.w3.rows; i++) {
-    for (size_t j = 0; j < model.w3.cols; j++) {
-      MATRIX_AT(model.w3, i, j) -= rate * MATRIX_AT(gradient.w3, i, j);
-    }
-  }
-  for (size_t i = 0; i < model.b3.rows; i++) {
-    for (size_t j = 0; j < model.b3.cols; j++) {
-      MATRIX_AT(model.b3, i, j) -= rate * MATRIX_AT(gradient.b3, i, j);
+    
+    for (size_t i = 0; i < nn.bs[l].rows; i++) {
+      for (size_t j = 0; j < nn.bs[l].cols; j++) {
+        MATRIX_AT(nn.bs[l], i, j) -= rate * MATRIX_AT(gradient.bs[l], i, j);
+      }
     }
   }
 }
@@ -239,25 +155,22 @@ int main(void)
 
   srand(time(0));
 
-  Model model = model_alloc();
-  Model gradient = model_alloc();
+  size_t arch[] = {784, 16, 16, 10};
+  NN nn = nn_alloc(arch, ARRAY_LEN(arch));
+  NN gradient = nn_alloc(arch, ARRAY_LEN(arch));
 
-  matrix_rand(model.w1, 0, 1);
-  matrix_rand(model.b1, 0, 1);
-  matrix_rand(model.w2, 0, 1);
-  matrix_rand(model.b2, 0, 1);
-  matrix_rand(model.w3, 0, 1);
-  matrix_rand(model.b3, 0, 1);
+  nn_rand(nn, 0, 1);
 
   float eps = 0.1f;
   float rate = 0.1f;
 
-  printf("cost = %f\n", cost(model, 100, training_images, training_labels));
-  finite_diff(model, gradient, eps, training_images, training_labels);
-  learn(model, gradient, rate);
-  printf("cost = %f\n", cost(model, 100, training_images, training_labels));
+  printf("cost = %f\n", cost(nn, 100, training_images, training_labels));
+  finite_diff(nn, gradient, eps, training_images, training_labels);
+  
+  learn(nn, gradient, rate);
+  printf("cost = %f\n", cost(nn, 100, training_images, training_labels));
 
-  MATRIX_PRINT(model.a3);
+  MATRIX_PRINT(NN_OUTPUT(nn));
 
   return 0;
 }

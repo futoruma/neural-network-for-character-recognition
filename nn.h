@@ -15,6 +15,8 @@
 #define NN_ASSERT assert
 #endif // NN_ASSERT
 
+#define ARRAY_LEN(xs) sizeof((xs)) / sizeof((xs)[0])
+
 typedef struct {
   size_t rows;
   size_t cols;
@@ -35,8 +37,23 @@ void matrix_dot(Matrix dst, Matrix a, Matrix b);
 void matrix_sum(Matrix dst, Matrix a);
 void matrix_sig(Matrix matrix);
 void matrix_softmax(Matrix matrix);
-void matrix_print(Matrix matrix, const char *name);
-#define MATRIX_PRINT(m) matrix_print(m, #m)
+void matrix_print(Matrix matrix, const char *name, size_t padding);
+#define MATRIX_PRINT(m) matrix_print(m, #m, 0)
+
+typedef struct {
+  size_t count;
+  Matrix *ws;
+  Matrix *bs;
+  Matrix *as;
+} NN;
+
+#define NN_INPUT(nn) (nn).as[0]
+#define NN_OUTPUT(nn) (nn).as[(nn).count]
+
+NN nn_alloc(size_t *arch, size_t arch_count);
+void nn_print(NN nn, const char *name);
+#define NN_PRINT(nn) nn_print(nn, #nn)
+void nn_rand(NN nn, float low, float high);
 
 #endif // NN_H_
 
@@ -143,16 +160,17 @@ void matrix_softmax(Matrix matrix)
   }
 }
 
-void matrix_print(Matrix matrix, const char *name)
+void matrix_print(Matrix matrix, const char *name, size_t padding)
 {
-  printf("%s = [\n", name);
+  printf("%*s%s = [\n", (int) padding, "", name);
   for (size_t i = 0; i < matrix.rows; i++) {
+    printf("%*s ", (int) padding, "");
     for (size_t j = 0; j < matrix.cols; j++) {
       printf("%f ", MATRIX_AT(matrix, i, j));
     }
     printf("\n");
   }
-  printf("]\n");
+  printf("%*s]\n", (int) padding, "");
 }
 
 void matrix_fill(Matrix matrix, float x)
@@ -170,6 +188,50 @@ void matrix_rand(Matrix matrix, float low, float high)
     for (size_t j = 0; j < matrix.cols; j++) {
       MATRIX_AT(matrix, i, j) = rand_float() * (high - low) + low;
     }
+  }
+}
+
+NN nn_alloc(size_t *arch, size_t arch_count)
+{
+  NN_ASSERT(arch_count > 0);
+  NN nn;
+  nn.count = arch_count - 1;
+
+  nn.ws = NN_MALLOC(sizeof(*nn.ws) * nn.count);
+  NN_ASSERT(nn.ws != NULL);
+  nn.bs = NN_MALLOC(sizeof(*nn.bs) * nn.count);
+  NN_ASSERT(nn.bs != NULL);
+  nn.as = NN_MALLOC(sizeof(*nn.as) * (nn.count + 1));
+  NN_ASSERT(nn.as != NULL);
+
+  nn.as[0] = matrix_alloc(1, arch[0]); 
+  for (size_t i = 1; i < arch_count; i++) {
+    nn.ws[i-1] = matrix_alloc(nn.as[i-1].cols, arch[i]);
+    nn.bs[i-1] = matrix_alloc(1, arch[i]);
+    nn.as[i] = matrix_alloc(1, arch[i]);
+  }
+
+  return nn;
+}
+
+void nn_print(NN nn, const char *name)
+{
+  char buf[256];
+  printf("%s = [\n", name);
+  for (size_t i = 0; i < nn.count; i++) {
+    snprintf(buf, sizeof(buf), "ws%zu", i);
+    matrix_print(nn.ws[i], buf, 4);
+    snprintf(buf, sizeof(buf), "bs%zu", i);
+    matrix_print(nn.bs[i], buf, 4);
+  }
+  printf("]\n");
+}
+
+void nn_rand(NN nn, float low, float high)
+{
+  for (size_t i = 0; i < nn.count; i++) {
+    matrix_rand(nn.ws[i], low, high);
+    matrix_rand(nn.bs[i], low, high);
   }
 }
 
