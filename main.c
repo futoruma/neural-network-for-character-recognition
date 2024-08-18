@@ -12,15 +12,15 @@
 #define TEST_IMAGES_PATH "./test_data/test_images"
 #define TEST_LABELS_PATH "./test_data/test_labels"
 
-#define TRAINING_IMAGES_NUM 60000
-#define TEST_IMAGES_NUM 10000
+#define TRAINING_IMAGES_NUM 600
+#define TEST_IMAGES_NUM 100
 #define IMAGE_UNIT_LEN 784
 #define LABEL_UNIT_LEN 1
 #define IMAGES_METADATA_LEN 4
 #define LABELS_METADATA_LEN 2
 #define DIGITS 10
-#define EPS 0.1f
 #define LEARNING_RATE 0.1f
+#define EPOCHS 1000
 
 int int_buf[IMAGES_METADATA_LEN];
 unsigned char char_buf[TRAINING_IMAGES_NUM][IMAGE_UNIT_LEN];
@@ -65,7 +65,7 @@ void nn_forward(NN nn)
   for (size_t i = 0; i < nn.count; i++) {
     matrix_dot(nn.as[i+1], nn.as[i], nn.ws[i]);
     matrix_sum(nn.as[i+1], nn.bs[i]);
-    (i + 1) == nn.count ? matrix_softmax(nn.as[i+1]) : matrix_sig(nn.as[i+1]);
+    matrix_sig(nn.as[i+1]);
   }
 }
 
@@ -93,28 +93,49 @@ float cost(NN nn, int data_num, float images[][IMAGE_UNIT_LEN], int labels[])
   return cost / data_num;
 }
 
-void finite_diff(NN nn, NN gradient, float images[][IMAGE_UNIT_LEN], int labels[])
+void nn_backprop(NN nn, NN gradient, int data_num, float images[][IMAGE_UNIT_LEN], int labels[])
 {
-  float saved;
-  float c = cost(nn, TRAINING_IMAGES_NUM, training_images, training_labels);
-
-  for (size_t l = 0; l < nn.count; l++) {
-    
-    for (size_t i = 0; i < nn.ws[l].rows; i++) {
-      for (size_t j = 0; j < nn.ws[l].cols; j++) {
-        saved = MATRIX_AT(nn.ws[l], i, j);
-        MATRIX_AT(nn.ws[l], i, j) += EPS;
-        MATRIX_AT(gradient.ws[l], i, j) = (cost(nn, TRAINING_IMAGES_NUM, training_images, training_labels) - c) / EPS; 
-        MATRIX_AT(nn.ws[l], i, j) = saved;
-      }
+  for (size_t d = 0; d < data_num; d++) {
+    for (size_t p = 0; p < IMAGE_UNIT_LEN; p++) {
+      MATRIX_AT(NN_INPUT(nn), 0, p) = images[d][p];
     }
     
-    for (size_t i = 0; i < nn.bs[l].rows; i++) {
-      for (size_t j = 0; j < nn.bs[l].cols; j++) {
-        saved = MATRIX_AT(nn.bs[l], i, j);
-        MATRIX_AT(nn.bs[l], i, j) += EPS;
-        MATRIX_AT(gradient.bs[l], i, j) = (cost(nn, TRAINING_IMAGES_NUM, training_images, training_labels) - c) / EPS; 
-        MATRIX_AT(nn.bs[l], i, j) = saved;
+    nn_forward(nn);
+
+    for (size_t l = 0; l <= nn.count; l++) {
+      matrix_fill(gradient.as[l], 0);
+    }
+
+    for (size_t n = 0; n < NN_OUTPUT(gradient).cols; n++) {
+      MATRIX_AT(NN_OUTPUT(gradient), 0, n) = MATRIX_AT(NN_OUTPUT(nn), 0, n);
+    }
+    int correct_digit = labels[d];
+    MATRIX_AT(NN_OUTPUT(gradient), 0, correct_digit) = 1.0f - MATRIX_AT(NN_OUTPUT(gradient), 0, correct_digit);
+
+    for (size_t l = nn.count; l > 0; l--) {
+      for (size_t j = 0; j < nn.as[l].cols; j++) {
+        float a = MATRIX_AT(nn.as[l], 0, j);
+        float da = MATRIX_AT(gradient.as[l], 0, j);
+        MATRIX_AT(gradient.bs[l-1], 0, j) += 2 * da * a * (1 - a);
+        for (size_t i = 0; i < nn.as[l-1].cols; i++) {
+          float pa = MATRIX_AT(nn.as[l-1], 0, i);
+          float w = MATRIX_AT(nn.ws[l-1], i, j);
+          MATRIX_AT(gradient.ws[l-1], i, j) += 2 * da * a * (1 - a) * pa;
+          MATRIX_AT(gradient.as[l-1], 0, i) += 2 * da * a * (1 - a) * w;
+        }
+      }
+    }
+  }
+
+  for (size_t l = 0; l < gradient.count; l++) {
+    for (size_t i = 0; i < gradient.ws[l].rows; i++) {
+      for (size_t j = 0; j < gradient.ws[j].cols; j++) {
+        MATRIX_AT(gradient.ws[l], i, j) /= data_num;
+      }
+    }
+    for (size_t i = 0; i < gradient.bs[l].rows; i++) {
+      for (size_t j = 0; j < gradient.bs[l].cols; j++) {
+        MATRIX_AT(gradient.bs[l], i, j) /= data_num;
       }
     }
   }
@@ -161,10 +182,12 @@ int main(void)
   nn_rand(nn, 0, 1);
 
   printf("cost = %f\n", cost(nn, TRAINING_IMAGES_NUM, training_images, training_labels));
-  finite_diff(nn, gradient, training_images, training_labels);
   
-  learn(nn, gradient);
-  printf("cost = %f\n", cost(nn, TRAINING_IMAGES_NUM, training_images, training_labels));
+  for (size_t i = 0; i < EPOCHS; i++) {
+    nn_backprop(nn, gradient, TRAINING_IMAGES_NUM, training_images, training_labels);
+    learn(nn, gradient);
+    printf("%zu: cost = %f\n", i, cost(nn, TRAINING_IMAGES_NUM, training_images, training_labels));
+  }
 
   MATRIX_PRINT(NN_OUTPUT(nn));
 

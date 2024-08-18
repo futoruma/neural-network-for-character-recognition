@@ -51,10 +51,10 @@ typedef struct {
 #define NN_OUTPUT(nn) (nn).as[(nn).count]
 
 NN nn_alloc(size_t *arch, size_t arch_count);
+void nn_zero(NN nn);
 void nn_print(NN nn, const char *name);
 #define NN_PRINT(nn) nn_print(nn, #nn)
 void nn_rand(NN nn, float low, float high);
-
 #endif // NN_H_
 
 #ifdef NN_IMPLEMENTATION
@@ -212,6 +212,16 @@ NN nn_alloc(size_t *arch, size_t arch_count)
   }
 
   return nn;
+}
+
+void nn_zero(NN nn)
+{
+  for (size_t i = 0; i < nn.count; i++) {
+    matrix_fill(nn.ws[i], 0);
+    matrix_fill(nn.bs[i], 0);
+    matrix_fill(nn.as[i], 0);
+  }
+  matrix_fill(NN_OUTPUT(nn), 0);
 }
 
 void nn_print(NN nn, const char *name)
