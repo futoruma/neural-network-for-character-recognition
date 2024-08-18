@@ -12,8 +12,8 @@
 #define TEST_IMAGES_PATH "./test_data/test_images"
 #define TEST_LABELS_PATH "./test_data/test_labels"
 
-#define TRAINING_IMAGES_NUM 60000
-#define TEST_IMAGES_NUM 10000
+#define TRAINING_IMAGES_NUM 600
+#define TEST_IMAGES_NUM 10
 #define IMAGE_UNIT_LEN 784
 #define LABEL_UNIT_LEN 1
 #define IMAGES_METADATA_LEN 4
@@ -105,11 +105,13 @@ void nn_backprop(NN nn, NN gradient, int data_num, float images[][IMAGE_UNIT_LEN
     for (size_t l = 0; l <= nn.count; l++) {
       matrix_fill(gradient.as[l], 0);
     }
-
+    
+    float eps = 1e-2;
     for (size_t n = 0; n < NN_OUTPUT(nn).cols; n++) {
-      MATRIX_AT(NN_OUTPUT(gradient), 0, n) = MATRIX_AT(NN_OUTPUT(nn), 0, n);
+      if (n == labels[d]) eps += 1.0f;
+      MATRIX_AT(NN_OUTPUT(gradient), 0, n) = MATRIX_AT(NN_OUTPUT(nn), 0, n) / eps;
+      if (n == labels[d]) eps -= 1.0f;
     }
-    MATRIX_AT(NN_OUTPUT(gradient), 0, labels[d]) -= 1.0f;
 
     for (size_t l = nn.count; l > 0; l--) {
       for (size_t j = 0; j < nn.as[l].cols; j++) {
@@ -158,29 +160,16 @@ void learn(NN nn, NN gradient)
   }
 }
 
-void nn_test(NN nn, size_t data_num, float images[][IMAGE_UNIT_LEN], int labels[])
-{
-  size_t correct_predictions = 0;
-
-  for (size_t i = 0; i < data_num; i++) {
-    for (size_t j = 0; j < IMAGE_UNIT_LEN; j++) {
-      MATRIX_AT(NN_INPUT(nn), 0, j) = images[i][j];
-    }
+void nn_test(NN nn, size_t i, float images[][IMAGE_UNIT_LEN], int labels[])
+{   
+  for (size_t j = 0; j < IMAGE_UNIT_LEN; j++) {
+    MATRIX_AT(NN_INPUT(nn), 0, j) = images[i][j];
   }
 
-  for (size_t d; d < data_num; d++) {
-     for (size_t i = 0; i < nn.count; i++) {
-      matrix_dot(nn.as[i+1], nn.as[i], nn.ws[i]);
-      matrix_sum(nn.as[i+1], nn.bs[i]);
-      (i + 1) == nn.count ? matrix_softmax(NN_OUTPUT(nn)) : matrix_sig(nn.as[i+1]);
-    }
-    
-    if (MATRIX_AT(NN_OUTPUT(nn), 0, labels[d]) > 0.5f) {
-    correct_predictions++;
-    }
-  }
+  nn_forward(nn);
 
-  printf("correct predictions: %zu / %zu", correct_predictions, data_num);
+  printf("expected %d", labels[i]);
+  MATRIX_PRINT(NN_OUTPUT(nn));
 }
 
 int main(void)
@@ -199,21 +188,20 @@ int main(void)
 
   srand(time(0));
 
-  size_t arch[] = {784, 128, 10};
+  size_t arch[] = {784, 32, 10};
   NN nn = nn_alloc(arch, ARRAY_LEN(arch));
   NN gradient = nn_alloc(arch, ARRAY_LEN(arch));
 
   nn_rand(nn, 0, 1);
 
-  printf("%d", training_labels[59999]);
-
   for (size_t i = 0; i < EPOCHS; i++) {
     nn_backprop(nn, gradient, TRAINING_IMAGES_NUM, training_images, training_labels);
     learn(nn, gradient);
-    MATRIX_PRINT(NN_OUTPUT(nn));
   }
 
-  nn_test(nn, TEST_IMAGES_NUM, test_images, test_labels);
+  for (size_t i = 0; i < TEST_IMAGES_NUM; i++) {
+    nn_test(nn, i, test_images, test_labels);
+  }
 
   return 0;
 }
