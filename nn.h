@@ -27,6 +27,8 @@ typedef struct {
 
 float rand_float(void);
 float sigmoidf(float x);
+float cross_entropy(int expected_num, Matrix t, int K);
+float *d_cross_entropy(float *y, float *t, int K);
 
 Matrix matrix_alloc(size_t rows, size_t cols);
 void matrix_fill(Matrix matrix, float x);
@@ -76,6 +78,37 @@ Matrix matrix_alloc(size_t rows, size_t cols)
   matrix.es = NN_MALLOC(sizeof(*matrix.es) * rows * cols);
   NN_ASSERT(matrix.es != NULL);
   return matrix;
+}
+
+float cross_entropy(int expected_num, Matrix t, int K) {
+  float eps = 1e-12;
+  float E = 0.0f;
+    
+  for (size_t k = 0; k < K; k++) {
+    float yk = 0.0f;
+    if (k == expected_num) yk = 1.0f;
+    E -= MATRIX_AT(t, 0, k) * logf(yk + eps);
+    if (k == expected_num) yk = 0.0f;
+  }
+    
+  return E;
+}
+
+float *d_cross_entropy(float *y, float *t, int K) {
+  float eps = 1e-12;
+  float *dE_dy = NULL;
+    
+  if ((dE_dy = (float *)malloc((K + 1) * sizeof(float))) == NULL) {
+    exit(-1);
+  }
+    
+  dE_dy[0] = 0.0f;
+    
+  for (size_t k = 1; k <= K; k++) {
+    dE_dy[k] = - (t[k] / (y[k] + eps));
+  }
+    
+  return dE_dy;
 }
 
 void matrix_dot(Matrix dst, Matrix a, Matrix b)
