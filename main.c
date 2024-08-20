@@ -12,8 +12,8 @@
 #define TEST_IMAGES_PATH "./test_data/test_images"
 #define TEST_LABELS_PATH "./test_data/test_labels"
 
-#define TRAINING_IMAGES_NUM 600
-#define TEST_IMAGES_NUM 10
+#define TRAINING_IMAGES_NUM 5
+#define TEST_IMAGES_NUM 5
 #define IMAGE_UNIT_LEN 784
 #define LABEL_UNIT_LEN 1
 #define IMAGES_METADATA_LEN 4
@@ -47,14 +47,14 @@ void load_into_buffer(char *file_path, int meta_len, int unit_len, int data_num)
   close(file_descriptor);
 }
 
-void save_buffer_to_images(int data_num, float images[][IMAGE_UNIT_LEN])
+void populate_images(int data_num, float images[][IMAGE_UNIT_LEN])
 {
   for (size_t i = 0; i < data_num; i++)
     for (size_t j = 0; j < IMAGE_UNIT_LEN; j++)
       images[i][j]  = (float) char_buf[i][j] / 255.0f;
 }
 
-void save_buffer_to_labels(int data_num, int labels[])
+void populate_labels(int data_num, int labels[])
 {
   for (size_t i = 0; i < data_num; i++)
     labels[i]  = (int) char_buf[i][0];
@@ -62,146 +62,181 @@ void save_buffer_to_labels(int data_num, int labels[])
 
 void nn_forward(NN nn)
 {
-  for (size_t i = 0; i < nn.count; i++) {
-    matrix_dot(nn.as[i+1], nn.as[i], nn.ws[i]);
-    matrix_sum(nn.as[i+1], nn.bs[i]);
-    (i + 1) == nn.count ? matrix_softmax(NN_OUTPUT(nn)) : matrix_sig(nn.as[i+1]);
-  }
+
 }
 
 float cost(NN nn, int data_num, float images[][IMAGE_UNIT_LEN], int labels[])
 {
-  float cost = 0;
-  for (size_t i = 0; i < data_num; i++) {
-    for (size_t j = 0; j < IMAGE_UNIT_LEN; j++) {
-      MATRIX_AT(NN_INPUT(nn), 0, j) = images[i][j];
-    }
-
-  nn_forward(nn);
-
-  int correct_digit = labels[i];
-
-  for (size_t j = 0; j < DIGITS; j++) {
-    float diff = MATRIX_AT(NN_OUTPUT(nn), 0, j);
-    if (j == correct_digit) {
-      diff -= 1.0f;
-    }
-    cost += diff * diff;
-    }
-  }
-
-  return cost / data_num;
+  return 0.0f;
 }
 
 void nn_backprop(NN nn, NN gradient, int data_num, float images[][IMAGE_UNIT_LEN], int labels[])
 {
-  for (size_t d = 0; d < data_num; d++) {
-    for (size_t p = 0; p < IMAGE_UNIT_LEN; p++) {
-      MATRIX_AT(NN_INPUT(nn), 0, p) = images[d][p];
-    }
-    
-    nn_forward(nn);
-
-    for (size_t l = 0; l <= nn.count; l++) {
-      matrix_fill(gradient.as[l], 0);
-    }
-    
-    float eps = 1e-2;
-    for (size_t n = 0; n < NN_OUTPUT(nn).cols; n++) {
-      if (n == labels[d]) eps += 1.0f;
-      MATRIX_AT(NN_OUTPUT(gradient), 0, n) = MATRIX_AT(NN_OUTPUT(nn), 0, n) / eps;
-      if (n == labels[d]) eps -= 1.0f;
-    }
-
-    for (size_t l = nn.count; l > 0; l--) {
-      for (size_t j = 0; j < nn.as[l].cols; j++) {
-        float a = MATRIX_AT(nn.as[l], 0, j);
-        float da = MATRIX_AT(gradient.as[l], 0, j);
-        MATRIX_AT(gradient.bs[l-1], 0, j) += 1 * da * a * (1 - a);
-        for (size_t i = 0; i < nn.as[l-1].cols; i++) {
-          float pa = MATRIX_AT(nn.as[l-1], 0, i);
-          float w = MATRIX_AT(nn.ws[l-1], i, j);
-          MATRIX_AT(gradient.ws[l-1], i, j) += 1 * da * a * (1 - a) * pa;
-          MATRIX_AT(gradient.as[l-1], 0, i) += 1 * da * a * (1 - a) * w;
-        }
-      }
-    }
-  }
-
-  for (size_t l = 0; l < gradient.count; l++) {
-    for (size_t i = 0; i < gradient.ws[l].rows; i++) {
-      for (size_t j = 0; j < gradient.ws[j].cols; j++) {
-        MATRIX_AT(gradient.ws[l], i, j) /= data_num;
-      }
-    }
-    for (size_t i = 0; i < gradient.bs[l].rows; i++) {
-      for (size_t j = 0; j < gradient.bs[l].cols; j++) {
-        MATRIX_AT(gradient.bs[l], i, j) /= data_num;
-      }
-    }
-  }
+  
 }
 
 void learn(NN nn, NN gradient)
 {
-  for (size_t l = 0; l < nn.count; l++) {
-    
-    for (size_t i = 0; i < nn.ws[l].rows; i++) {
-      for (size_t j = 0; j < nn.ws[l].cols; j++) {
-        MATRIX_AT(nn.ws[l], i, j) -= LEARNING_RATE * MATRIX_AT(gradient.ws[l], i, j);
-      }
-    }
-    
-    for (size_t i = 0; i < nn.bs[l].rows; i++) {
-      for (size_t j = 0; j < nn.bs[l].cols; j++) {
-        MATRIX_AT(nn.bs[l], i, j) -= LEARNING_RATE * MATRIX_AT(gradient.bs[l], i, j);
-      }
-    }
-  }
-}
-
-void nn_test(NN nn, size_t i, float images[][IMAGE_UNIT_LEN], int labels[])
-{   
-  for (size_t j = 0; j < IMAGE_UNIT_LEN; j++) {
-    MATRIX_AT(NN_INPUT(nn), 0, j) = images[i][j];
-  }
-
-  nn_forward(nn);
-
-  printf("expected %d", labels[i]);
-  MATRIX_PRINT(NN_OUTPUT(nn));
+  
 }
 
 int main(void)
 {  
   load_into_buffer(TRAINING_IMAGES_PATH, IMAGES_METADATA_LEN, IMAGE_UNIT_LEN, TRAINING_IMAGES_NUM);
-  save_buffer_to_images(TRAINING_IMAGES_NUM, training_images);
+  populate_images(TRAINING_IMAGES_NUM, training_images);
 
   load_into_buffer(TEST_IMAGES_PATH, IMAGES_METADATA_LEN, IMAGE_UNIT_LEN, TEST_IMAGES_NUM);
-  save_buffer_to_images(TEST_IMAGES_NUM, test_images);
+  populate_images(TEST_IMAGES_NUM, test_images);
     
   load_into_buffer(TRAINING_LABELS_PATH, LABELS_METADATA_LEN, LABEL_UNIT_LEN, TRAINING_IMAGES_NUM);
-  save_buffer_to_labels(TRAINING_IMAGES_NUM, training_labels);
+  populate_labels(TRAINING_IMAGES_NUM, training_labels);
     
   load_into_buffer(TEST_LABELS_PATH, LABELS_METADATA_LEN, LABEL_UNIT_LEN, TEST_IMAGES_NUM);
-  save_buffer_to_labels(TEST_IMAGES_NUM, test_labels);
+  populate_labels(TEST_IMAGES_NUM, test_labels);
 
-  srand(time(0));
-
-  size_t arch[] = {784, 32, 10};
-  NN nn = nn_alloc(arch, ARRAY_LEN(arch));
-  NN gradient = nn_alloc(arch, ARRAY_LEN(arch));
-
-  nn_rand(nn, 0, 1);
-
-  for (size_t i = 0; i < EPOCHS; i++) {
-    nn_backprop(nn, gradient, TRAINING_IMAGES_NUM, training_images, training_labels);
-    learn(nn, gradient);
+  /*
+  for (size_t i = 0; i < TRAINING_IMAGES_NUM; i++) {
+    printf("training label %d\n", training_labels[i]);
+    for (size_t j = 1; j < 785; j++) {
+      printf("%1.1f ", training_images[i][j]);
+      if (j % 28 == 0) printf("\n");
+    }
+    printf("\n");
   }
 
   for (size_t i = 0; i < TEST_IMAGES_NUM; i++) {
-    nn_test(nn, i, test_images, test_labels);
+    printf("test label %d\n", test_labels[i]);
+    for (size_t j = 1; j < 785; j++) {
+      printf("%1.1f ", test_images[i][j]);
+      if (j % 28 == 0) printf("\n");
+    }
+    printf("\n");
   }
+  */
+
+  srand(time(0));
+
+  size_t arch[] = {784, 100, 10};
+
+  // initialize matrices
+  Matrix input = matrix_alloc(1, 784);
+
+  Matrix ws1 = matrix_alloc(784, 100);
+  Matrix bs1 = matrix_alloc(1, 100);
+  Matrix as1 = matrix_alloc(1, 100);
+
+  Matrix ws2 = matrix_alloc(100, 10);
+  Matrix bs2 = matrix_alloc(1, 10);
+
+  Matrix output = matrix_alloc(1, 10);
+
+  //input
+  for (size_t i = 0; i < 784; i++) {
+    MATRIX_AT(input, 0, i) = training_images[4][i];
+  }
+  printf("label: %d\n", training_labels[4]);
+  
+  // randomize
+
+  matrix_rand(ws1, -1, 1);
+  matrix_rand(bs1, -1, 1);
+
+  matrix_rand(ws2, -1, 1);
+  matrix_rand(bs2, -1, 1);
+
+  // forward
+  matrix_dot(as1, input, ws1);
+  matrix_sum(as1, bs1);
+  matrix_sig(as1);
+  MATRIX_PRINT(as1);
+
+  matrix_dot(output, as1, ws2);
+  matrix_sum(output, bs2);
+
+  MATRIX_PRINT(output);
+  matrix_sig(output);
+  MATRIX_PRINT(output);
+
+  // gradient matrices
+  Matrix g_input = matrix_alloc(1, 784);
+
+  Matrix g_ws1 = matrix_alloc(784, 100);
+  Matrix g_bs1 = matrix_alloc(1, 100);
+  Matrix g_as1 = matrix_alloc(1, 100);
+
+  Matrix g_ws2 = matrix_alloc(100, 10);
+  Matrix g_bs2 = matrix_alloc(1, 10);
+
+  Matrix g_output = matrix_alloc(1, 10);
+
+  //input
+  // backprop
+  MATRIX_AT(g_output, 0, training_labels[4]) -= 1.0f;
+
+  for (size_t j = 0; j < 10; j++) {
+    float a = MATRIX_AT(output, 0, j);
+    float da = MATRIX_AT(g_output, 0, j);
+    MATRIX_AT(g_bs2, 0, j) += 2 * da * a * (1 - a);
+    for (size_t k = 0; k < 100; k++) {
+      float pa = MATRIX_AT(as1, 0, k);
+      float w = MATRIX_AT(ws2, k, j);
+      MATRIX_AT(g_ws2, k, j) += 2 * da * a * (1 - a) * pa;
+      MATRIX_AT(g_as1, 0, k) += 2 * da * a * (1 - a) * w;
+    }
+  }
+  
+  for (size_t j = 0; j < 100; j++) {
+    float a = MATRIX_AT(as1, 0, j);
+    float da = MATRIX_AT(g_as1, 0, j);
+    MATRIX_AT(g_bs1, 0, j) += 2 * da * a * (1 - a);
+    for (size_t k = 0; k < 784; k++) {
+      float pa = MATRIX_AT(g_input, 0, k);
+      float w = MATRIX_AT(ws1, k, j);
+      MATRIX_AT(g_ws1, k, j) += 2 * da * a * (1 - a) * pa;
+      MATRIX_AT(g_input, 0, k) += 2 * da * a * (1 - a) * w;
+    }
+  }
+
+
+  // get average gradient
+
+
+  // update weights
+  for (size_t i = 0; i < ws1.rows; i++) {
+    for (size_t j = 0; j < ws1.cols; j++) {
+      MATRIX_AT(ws1, i, j) -= LEARNING_RATE * MATRIX_AT(g_ws1, i, j); 
+    }
+  }
+
+  for (size_t i = 0; i < ws2.rows; i++) {
+    for (size_t j = 0; j < ws2.cols; j++) {
+      MATRIX_AT(ws2, i, j) -= LEARNING_RATE * MATRIX_AT(g_ws2, i, j); 
+    }
+  }
+
+  for (size_t i = 0; i < bs1.rows; i++) {
+    for (size_t j = 0; j < bs1.cols; j++) {
+      MATRIX_AT(bs1, i, j) -= LEARNING_RATE * MATRIX_AT(g_bs1, i, j); 
+    }
+  }
+
+  for (size_t i = 0; i < bs2.rows; i++) {
+    for (size_t j = 0; j < bs2.cols; j++) {
+      MATRIX_AT(bs2, i, j) -= LEARNING_RATE * MATRIX_AT(g_bs2, i, j); 
+    }
+  }
+
+  matrix_dot(as1, input, ws1);
+  matrix_sum(as1, bs1);
+  matrix_sig(as1);
+  MATRIX_PRINT(as1);
+
+  matrix_dot(output, as1, ws2);
+  matrix_sum(output, bs2);
+
+  MATRIX_PRINT(output);
+  matrix_sig(output);
+  MATRIX_PRINT(output);
 
   return 0;
 }
