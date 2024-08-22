@@ -57,6 +57,7 @@ void nn_zero(NN nn);
 void nn_print(NN nn, const char *name);
 #define NN_PRINT(nn) nn_print(nn, #nn)
 void nn_rand(NN nn, float low, float high);
+void nn_forward(NN nn);
 #endif // NN_H_
 
 #ifdef NN_IMPLEMENTATION
@@ -278,5 +279,13 @@ void nn_rand(NN nn, float low, float high)
   }
 }
 
+void nn_forward(NN nn)
+{
+  for (int l = 0; l < nn.count; l++) {
+    matrix_dot(nn.as[l+1], nn.as[l], nn.ws[l]);
+    matrix_sum(nn.as[l+1], nn.bs[l]);
+    matrix_sig(nn.as[l+1]);
+  }
+}
 #endif // NN_IMPLEMENTATION
 
