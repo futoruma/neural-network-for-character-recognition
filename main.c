@@ -156,7 +156,6 @@ int main(void)
   NN nn = nn_alloc(arch, layer_count);
   NN gradient = nn_alloc(arch, layer_count);
 
-  //input
   for (size_t i = 0; i < IMAGE_UNIT_LEN; i++) {
     MATRIX_AT(NN_INPUT(nn), 0, i) = training_images[0][i];
   }
@@ -167,11 +166,15 @@ int main(void)
   nn_forward(nn);
   MATRIX_PRINT(nn.as[2]);
 
-  for (size_t e = 0; e < 1; e++) {
+  for (size_t e = 0; e < 100; e++) {
+    for (size_t j = 0; j <= nn.count; j++) {
+      matrix_fill(gradient.as[j], 0);
+    }
+
+    matrix_copy(NN_OUTPUT(gradient), NN_OUTPUT(nn));
     MATRIX_AT(NN_OUTPUT(gradient), 0, training_labels[0]) -= 1.0f;
 
     nn_get_gradient(nn, gradient);
-    NN_PRINT(gradient);
 
     nn_average_gradient(gradient, 1);
 
