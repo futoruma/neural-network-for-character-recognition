@@ -12,15 +12,15 @@
 #define TEST_IMAGES_PATH "./test_data/test_images"
 #define TEST_LABELS_PATH "./test_data/test_labels"
 
-#define TRAINING_IMAGES_NUM 5
-#define TEST_IMAGES_NUM 5
+#define TRAINING_IMAGES_NUM 60000
+#define TEST_IMAGES_NUM 10000
 #define IMAGE_UNIT_LEN 784
 #define LABEL_UNIT_LEN 1
 #define IMAGES_METADATA_LEN 4
 #define LABELS_METADATA_LEN 2
 #define DIGITS 10
-#define LEARNING_RATE 0.01f
-#define EPOCHS 1 
+#define LEARNING_RATE 0.03f
+#define EPOCHS 2 
 
 int int_buf[IMAGES_METADATA_LEN];
 unsigned char char_buf[TRAINING_IMAGES_NUM][IMAGE_UNIT_LEN];
@@ -60,60 +60,6 @@ void populate_labels(int data_num, int labels[])
     labels[i]  = (int) char_buf[i][0];
 }
 
-float cost(NN nn, int data_num, float images[][IMAGE_UNIT_LEN], int labels[])
-{
-  return 0.0f;
-}
-
-void nn_get_gradient(NN nn, NN gradient)
-{
-  for (size_t l = nn.count; l > 0; l--) {
-    for (size_t j = 0; j < nn.as[l].cols; j++) {
-      float a = MATRIX_AT(nn.as[l], 0, j);
-      float da = MATRIX_AT(gradient.as[l], 0, j);
-      MATRIX_AT(gradient.bs[l-1], 0, j) += 2 * da * a * (1 - a);
-      for (size_t k = 0; k < nn.as[l-1].cols; k++) {
-        float pa = MATRIX_AT(nn.as[l-1], 0, k);
-        float w = MATRIX_AT(nn.ws[l-1], k, j);
-        MATRIX_AT(gradient.ws[l-1], k, j) += 2 * da * a * (1 - a) * pa;
-        MATRIX_AT(gradient.as[l-1], 0, k) += 2 * da * a * (1 - a) * w;
-      }
-    }
-  }
-}
-
-void nn_average_gradient(NN gradient, size_t data_num)
-{
-  for (size_t l = 0; l < gradient.count; l++) {
-    for (size_t i = 0; i < gradient.ws[l].rows; i++) {
-      for (size_t j = 0; j < gradient.ws[l].cols; j++) {
-        MATRIX_AT(gradient.ws[l], i, j) /= data_num;
-      }
-    }
-    for (size_t i = 0; i < gradient.bs[l].rows; i++) {
-      for (size_t j = 0; j < gradient.bs[l].cols; j++) {
-        MATRIX_AT(gradient.bs[l], i, j) /= data_num;
-      }
-    }
-  }
-}
-
-void nn_update_weights(NN nn, NN gradient, float learning_rate)
-{
-  for (size_t l = 0; l < gradient.count; l++) {
-    for (size_t i = 0; i < gradient.ws[l].rows; i++) {
-      for (size_t j = 0; j < gradient.ws[l].cols; j++) {
-        MATRIX_AT(nn.ws[l], i, j) -= learning_rate * MATRIX_AT(gradient.ws[l], i, j);
-      }
-    }
-    for (size_t i = 0; i < gradient.bs[l].rows; i++) {
-      for (size_t j = 0; j < gradient.bs[l].cols; j++) {
-        MATRIX_AT(nn.bs[l], i, j) -= learning_rate * MATRIX_AT(gradient.bs[l], i, j);
-      }
-    }
-  }
-}
-
 int main(void)
 {  
   load_into_buffer(TRAINING_IMAGES_PATH, IMAGES_METADATA_LEN, IMAGE_UNIT_LEN, TRAINING_IMAGES_NUM);
@@ -150,72 +96,95 @@ int main(void)
 
   srand(time(0));
 
-  size_t arch[] = {IMAGE_UNIT_LEN, 100, DIGITS};
+  size_t arch[] = {IMAGE_UNIT_LEN, 48, DIGITS};
   size_t layer_count = ARRAY_LEN(arch);
 
   NN nn = nn_alloc(arch, layer_count);
   NN gradient = nn_alloc(arch, layer_count);
 
-  for (size_t i = 0; i < IMAGE_UNIT_LEN; i++) {
-    MATRIX_AT(NN_INPUT(nn), 0, i) = training_images[0][i];
-  }
-  printf("label: %d\n", training_labels[0]);
+  nn_rand(nn);
 
-  nn_rand(nn, -1, 1);
-
-  nn_forward(nn);
-  MATRIX_PRINT(nn.as[2]);
-
-  for (size_t e = 0; e < 100; e++) {
-    for (size_t j = 0; j <= nn.count; j++) {
-      matrix_fill(gradient.as[j], 0);
-    }
-
-    matrix_copy(NN_OUTPUT(gradient), NN_OUTPUT(nn));
-    MATRIX_AT(NN_OUTPUT(gradient), 0, training_labels[0]) -= 1.0f;
-
-    nn_get_gradient(nn, gradient);
-
-    nn_average_gradient(gradient, 1);
-
-    nn_update_weights(nn, gradient, LEARNING_RATE);
-
+  for (size_t e = 0; e < EPOCHS; e++) {
     nn_zero(gradient);
+    
+    for (size_t d = 0; d < TRAINING_IMAGES_NUM; d++) {
+      for (size_t p = 0; p < IMAGE_UNIT_LEN; p++) {
+        MATRIX_AT(NN_INPUT(nn), 0, p) = training_images[d][p];
+      }
+      nn_forward(nn);
 
+      for (size_t j = 0; j <= nn.count; j++) {
+        matrix_fill(gradient.as[j], 0);
+      }
+
+      matrix_copy(NN_OUTPUT(gradient), NN_OUTPUT(nn));
+      MATRIX_AT(NN_OUTPUT(gradient), 0, training_labels[d]) -= 1.0f;
+
+      nn_get_total_gradient(nn, gradient);
+
+      if ((d % 100) == 99) {
+        nn_get_average_gradient(gradient, 100);
+        nn_update_weights(nn, gradient, LEARNING_RATE);
+        nn_zero(gradient);
+      }
+    }
+  }
+
+  // check 
+  size_t correct_count = 0;
+  size_t max_digit = 0;
+  float max_value = 0.0f;
+
+  for (size_t d = 0; d < TRAINING_IMAGES_NUM; d++) {
+    for (size_t p = 0; p < IMAGE_UNIT_LEN; p++) {
+      MATRIX_AT(NN_INPUT(nn), 0, p) = training_images[d][p];
+    }
     nn_forward(nn);
-    MATRIX_PRINT(nn.as[2]);
-  }
 
- 
-/*
-  // backprop
-  MATRIX_AT(g_output, 0, training_labels[4]) -= 1.0f;
+    max_digit = 0;
+    max_value = 0.0f;
 
-  for (size_t j = 0; j < 10; j++) {
-    float a = MATRIX_AT(output, 0, j);
-    float da = MATRIX_AT(g_output, 0, j);
-    MATRIX_AT(g_bs2, 0, j) += 2 * da * a * (1 - a);
-    for (size_t k = 0; k < 100; k++) {
-      float pa = MATRIX_AT(as1, 0, k);
-      float w = MATRIX_AT(ws2, k, j);
-      MATRIX_AT(g_ws2, k, j) += 2 * da * a * (1 - a) * pa;
-      MATRIX_AT(g_as1, 0, k) += 2 * da * a * (1 - a) * w;
+    for (size_t i = 0; i < NN_OUTPUT(nn).cols; i++) {
+      if (MATRIX_AT(NN_OUTPUT(nn), 0, i) > max_value) {
+        max_value = MATRIX_AT(NN_OUTPUT(nn), 0, i);
+        max_digit = i;
+      }
     }
-  }
-  
-  for (size_t j = 0; j < 100; j++) {
-    float a = MATRIX_AT(as1, 0, j);
-    float da = MATRIX_AT(g_as1, 0, j);
-    MATRIX_AT(g_bs1, 0, j) += 2 * da * a * (1 - a);
-    for (size_t k = 0; k < 784; k++) {
-      float pa = MATRIX_AT(g_input, 0, k);
-      float w = MATRIX_AT(ws1, k, j);
-      MATRIX_AT(g_ws1, k, j) += 2 * da * a * (1 - a) * pa;
-      MATRIX_AT(g_input, 0, k) += 2 * da * a * (1 - a) * w;
-    }
+
+    if (max_digit == training_labels[d]) {
+      correct_count++;
+    } 
   }
 
-*/
+  printf("training set > correct: %zu / %d\n", correct_count, TRAINING_IMAGES_NUM);
+
+  correct_count = 0;
+  max_digit = 0;
+  max_value = 0.0f;
+
+  for (size_t d = 0; d < TEST_IMAGES_NUM; d++) {
+    for (size_t p = 0; p < IMAGE_UNIT_LEN; p++) {
+      MATRIX_AT(NN_INPUT(nn), 0, p) = test_images[d][p];
+    }
+    nn_forward(nn);
+
+    max_digit = 0;
+    max_value = 0.0f;
+
+    for (size_t i = 0; i < NN_OUTPUT(nn).cols; i++) {
+      if (MATRIX_AT(NN_OUTPUT(nn), 0, i) > max_value) {
+        max_value = MATRIX_AT(NN_OUTPUT(nn), 0, i);
+        max_digit = i;
+      }
+    }
+
+    if (max_digit == test_labels[d]) {
+      correct_count++;
+    } 
+  }
+
+  printf("test set > correct: %zu / %d\n", correct_count, TEST_IMAGES_NUM);
+
   return 0;
 }
 

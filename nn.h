@@ -27,13 +27,10 @@ typedef struct {
 
 float rand_float(void);
 float sigmoidf(float x);
-float cross_entropy(int expected_num, Matrix t, int K);
-float *d_cross_entropy(float *y, float *t, int K);
 
 Matrix matrix_alloc(size_t rows, size_t cols);
 void matrix_fill(Matrix matrix, float x);
 void matrix_rand(Matrix matrix, float low, float high);
-Matrix matrix_row(Matrix matrix, size_t row);
 void matrix_copy(Matrix dst, Matrix src);
 void matrix_dot(Matrix dst, Matrix a, Matrix b);
 void matrix_sum(Matrix dst, Matrix a);
@@ -56,8 +53,11 @@ NN nn_alloc(size_t *arch, size_t arch_count);
 void nn_zero(NN nn);
 void nn_print(NN nn, const char *name);
 #define NN_PRINT(nn) nn_print(nn, #nn)
-void nn_rand(NN nn, float low, float high);
+void nn_rand(NN nn);
 void nn_forward(NN nn);
+void nn_get_total_gradient(NN nn, NN gradient);
+void nn_get_average_gradient(NN gradient, size_t data_num);
+void nn_update_weights(NN nn, NN gradient, float learning_rate);
 #endif // NN_H_
 
 #ifdef NN_IMPLEMENTATION
@@ -81,37 +81,6 @@ Matrix matrix_alloc(size_t rows, size_t cols)
   return matrix;
 }
 
-float cross_entropy(int expected_num, Matrix t, int K) {
-  float eps = 1e-12;
-  float E = 0.0f;
-    
-  for (size_t k = 0; k < K; k++) {
-    float yk = 0.0f;
-    if (k == expected_num) yk = 1.0f;
-    E -= MATRIX_AT(t, 0, k) * logf(yk + eps);
-    if (k == expected_num) yk = 0.0f;
-  }
-    
-  return E;
-}
-
-float *d_cross_entropy(float *y, float *t, int K) {
-  float eps = 1e-12;
-  float *dE_dy = NULL;
-    
-  if ((dE_dy = (float *)malloc((K + 1) * sizeof(float))) == NULL) {
-    exit(-1);
-  }
-    
-  dE_dy[0] = 0.0f;
-    
-  for (size_t k = 1; k <= K; k++) {
-    dE_dy[k] = - (t[k] / (y[k] + eps));
-  }
-    
-  return dE_dy;
-}
-
 void matrix_dot(Matrix dst, Matrix a, Matrix b)
 {
   NN_ASSERT(a.cols == b.rows);
@@ -126,15 +95,6 @@ void matrix_dot(Matrix dst, Matrix a, Matrix b)
       }
     }
   }
-}
-
-Matrix matrix_row(Matrix matrix, size_t row)
-{
-  return (Matrix){
-    .rows = 1,
-    .cols = matrix.cols,
-    .es = &MATRIX_AT(matrix, row, 0)
-  };
 }
 
 void matrix_copy(Matrix dst, Matrix src)
@@ -271,11 +231,13 @@ void nn_print(NN nn, const char *name)
   printf("]\n");
 }
 
-void nn_rand(NN nn, float low, float high)
+void nn_rand(NN nn)
 {
-  for (size_t i = 0; i < nn.count; i++) {
-    matrix_rand(nn.ws[i], low, high);
-    matrix_rand(nn.bs[i], low, high);
+  float limit;
+  for (size_t l = 0; l < nn.count; l++) {
+    limit = sqrt(6) / sqrt(nn.as[l].cols + nn.as[l+1].cols);
+    matrix_rand(nn.ws[l], -limit, limit);
+    matrix_fill(nn.bs[l], 0);
   }
 }
 
@@ -287,5 +249,55 @@ void nn_forward(NN nn)
     matrix_sig(nn.as[l+1]);
   }
 }
+
+void nn_get_total_gradient(NN nn, NN gradient)
+{
+  for (size_t l = nn.count; l > 0; l--) {
+    for (size_t j = 0; j < nn.as[l].cols; j++) {
+      float a = MATRIX_AT(nn.as[l], 0, j);
+      float da = MATRIX_AT(gradient.as[l], 0, j);
+      MATRIX_AT(gradient.bs[l-1], 0, j) += 2 * da * a * (1 - a);
+      for (size_t k = 0; k < nn.as[l-1].cols; k++) {
+        float pa = MATRIX_AT(nn.as[l-1], 0, k);
+        float w = MATRIX_AT(nn.ws[l-1], k, j);
+        MATRIX_AT(gradient.ws[l-1], k, j) += 2 * da * a * (1 - a) * pa;
+        MATRIX_AT(gradient.as[l-1], 0, k) += 2 * da * a * (1 - a) * w;
+      }
+    }
+  }
+}
+
+void nn_get_average_gradient(NN gradient, size_t data_num)
+{
+  for (size_t l = 0; l < gradient.count; l++) {
+    for (size_t i = 0; i < gradient.ws[l].rows; i++) {
+      for (size_t j = 0; j < gradient.ws[l].cols; j++) {
+        MATRIX_AT(gradient.ws[l], i, j) /= data_num;
+      }
+    }
+    for (size_t i = 0; i < gradient.bs[l].rows; i++) {
+      for (size_t j = 0; j < gradient.bs[l].cols; j++) {
+        MATRIX_AT(gradient.bs[l], i, j) /= data_num;
+      }
+    }
+  }
+}
+
+void nn_update_weights(NN nn, NN gradient, float learning_rate)
+{
+  for (size_t l = 0; l < gradient.count; l++) {
+    for (size_t i = 0; i < gradient.ws[l].rows; i++) {
+      for (size_t j = 0; j < gradient.ws[l].cols; j++) {
+        MATRIX_AT(nn.ws[l], i, j) -= learning_rate * MATRIX_AT(gradient.ws[l], i, j);
+      }
+    }
+    for (size_t i = 0; i < gradient.bs[l].rows; i++) {
+      for (size_t j = 0; j < gradient.bs[l].cols; j++) {
+        MATRIX_AT(nn.bs[l], i, j) -= learning_rate * MATRIX_AT(gradient.bs[l], i, j);
+      }
+    }
+  }
+}
+
 #endif // NN_IMPLEMENTATION
 
