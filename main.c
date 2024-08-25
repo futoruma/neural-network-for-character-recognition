@@ -102,7 +102,7 @@ int main(void)
   NN nn = nn_alloc(arch, layer_count);
   NN gradient = nn_alloc(arch, layer_count);
 
-  nn_rand(nn);
+  nn_init(nn);
 
   for (size_t e = 0; e < EPOCHS; e++) {
     nn_zero(gradient);
