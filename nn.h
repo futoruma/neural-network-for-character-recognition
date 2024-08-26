@@ -38,6 +38,8 @@ void nn_forward(NN nn);
 void nn_get_average_gradient(NN gradient, size_t data_num);
 void nn_get_total_gradient(NN nn, NN gradient);
 void nn_init(NN nn);
+void nn_test(NN nn, char *set_name, size_t image_count, size_t image_unit_len,
+             float images[][image_unit_len], int labels[]);
 void nn_train(NN nn, NN gradient, size_t image_count, size_t image_unit_len,
               float images[][image_unit_len], int labels[], size_t epochs, 
               float learning_rate, size_t training_batch);
@@ -252,6 +254,37 @@ void nn_init(NN nn)
     matrix_rand(nn.ws[l], -limit, limit);
     matrix_fill(nn.bs[l], 0);
   }
+}
+
+void nn_test(NN nn, char *set_name, size_t image_count, size_t image_unit_len,
+             float images[][image_unit_len], int labels[])
+{
+  size_t correct_count = 0;
+  size_t max_digit = 0;
+  float max_value = 0.0f;
+
+  for (size_t i = 0; i < image_count; i++) {
+    for (size_t j = 0; j < image_unit_len; j++) {
+      MATRIX_AT(NN_INPUT(nn), 0, j) = images[i][j];
+    }
+    nn_forward(nn);
+
+    max_digit = 0;
+    max_value = 0.0f;
+
+    for (size_t d = 0; d < NN_OUTPUT(nn).cols; d++) {
+      if (MATRIX_AT(NN_OUTPUT(nn), 0, d) > max_value) {
+        max_value = MATRIX_AT(NN_OUTPUT(nn), 0, d);
+        max_digit = d;
+      }
+    }
+
+    if (max_digit == labels[i]) {
+      correct_count++;
+    } 
+  }
+  printf("Forwarded %s set. ", set_name);
+  printf("Accuracy: %zu / %zu.\n", correct_count, image_count);
 }
 
 void nn_train(NN nn, NN gradient, size_t image_count, size_t image_unit_len,
