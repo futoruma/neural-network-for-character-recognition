@@ -21,6 +21,7 @@
 #define DIGITS 10
 #define LEARNING_RATE 0.03f
 #define EPOCHS 2 
+#define TRAINING_BATCH 100
 
 int int_buf[IMAGES_METADATA_LEN];
 unsigned char char_buf[TRAINING_IMAGES_NUM][IMAGE_UNIT_LEN];
@@ -57,9 +58,42 @@ void populate_images(int data_num, float images[][IMAGE_UNIT_LEN])
 void populate_labels(int data_num, int labels[])
 {
   for (size_t i = 0; i < data_num; i++)
-    labels[i]  = (int) char_buf[i][0];
+    labels[i] = (int) char_buf[i][0];
 }
+/*
+void nn_train(NN nn, NN gradient, size_t image_count, size_t image_unit_len,
+              float images[][image_unit_len], int labels[], size_t epochs, 
+              float learning_rate, size_t training_batch)
+{
+  nn_init(nn);
+  
+  for (size_t e = 0; e < epochs; e++) {
+    nn_zero(gradient);
+    
+    for (size_t i = 0; i < image_count; i++) {
+      for (size_t j = 0; j < image_unit_len; j++) {
+        MATRIX_AT(NN_INPUT(nn), 0, j) = images[i][j];
+      }
+      nn_forward(nn);
 
+      for (size_t l = 0; l <= nn.count; l++) {
+        matrix_fill(gradient.as[l], 0);
+      }
+
+      matrix_copy(NN_OUTPUT(gradient), NN_OUTPUT(nn));
+      MATRIX_AT(NN_OUTPUT(gradient), 0, labels[i]) -= 1.0f;
+
+      nn_get_total_gradient(nn, gradient);
+
+      if ((i % training_batch) == (training_batch - 1)) {
+        nn_get_average_gradient(gradient, training_batch);
+        nn_update_weights(nn, gradient, learning_rate);
+        nn_zero(gradient);
+      }
+    }
+  }
+}
+*/
 int main(void)
 {  
   load_into_buffer(TRAINING_IMAGES_PATH, IMAGES_METADATA_LEN, IMAGE_UNIT_LEN, TRAINING_IMAGES_NUM);
@@ -74,26 +108,6 @@ int main(void)
   load_into_buffer(TEST_LABELS_PATH, LABELS_METADATA_LEN, LABEL_UNIT_LEN, TEST_IMAGES_NUM);
   populate_labels(TEST_IMAGES_NUM, test_labels);
 
-  /*
-  for (size_t i = 0; i < TRAINING_IMAGES_NUM; i++) {
-    printf("training label %d\n", training_labels[i]);
-    for (size_t j = 1; j < 785; j++) {
-      printf("%1.1f ", training_images[i][j]);
-      if (j % 28 == 0) printf("\n");
-    }
-    printf("\n");
-  }
-
-  for (size_t i = 0; i < TEST_IMAGES_NUM; i++) {
-    printf("test label %d\n", test_labels[i]);
-    for (size_t j = 1; j < 785; j++) {
-      printf("%1.1f ", test_images[i][j]);
-      if (j % 28 == 0) printf("\n");
-    }
-    printf("\n");
-  }
-  */
-
   srand(time(0));
 
   size_t arch[] = {IMAGE_UNIT_LEN, 48, DIGITS};
@@ -102,33 +116,8 @@ int main(void)
   NN nn = nn_alloc(arch, layer_count);
   NN gradient = nn_alloc(arch, layer_count);
 
-  nn_init(nn);
-
-  for (size_t e = 0; e < EPOCHS; e++) {
-    nn_zero(gradient);
-    
-    for (size_t d = 0; d < TRAINING_IMAGES_NUM; d++) {
-      for (size_t p = 0; p < IMAGE_UNIT_LEN; p++) {
-        MATRIX_AT(NN_INPUT(nn), 0, p) = training_images[d][p];
-      }
-      nn_forward(nn);
-
-      for (size_t j = 0; j <= nn.count; j++) {
-        matrix_fill(gradient.as[j], 0);
-      }
-
-      matrix_copy(NN_OUTPUT(gradient), NN_OUTPUT(nn));
-      MATRIX_AT(NN_OUTPUT(gradient), 0, training_labels[d]) -= 1.0f;
-
-      nn_get_total_gradient(nn, gradient);
-
-      if ((d % 100) == 99) {
-        nn_get_average_gradient(gradient, 100);
-        nn_update_weights(nn, gradient, LEARNING_RATE);
-        nn_zero(gradient);
-      }
-    }
-  }
+  nn_train(nn, gradient, TRAINING_IMAGES_NUM, IMAGE_UNIT_LEN, training_images,
+           training_labels, EPOCHS, LEARNING_RATE, TRAINING_BATCH);
 
   // check 
   size_t correct_count = 0;

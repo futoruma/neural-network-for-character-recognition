@@ -38,6 +38,9 @@ void nn_forward(NN nn);
 void nn_get_average_gradient(NN gradient, size_t data_num);
 void nn_get_total_gradient(NN nn, NN gradient);
 void nn_init(NN nn);
+void nn_train(NN nn, NN gradient, size_t image_count, size_t image_unit_len,
+              float images[][image_unit_len], int labels[], size_t epochs, 
+              float learning_rate, size_t training_batch);
 void nn_print(NN nn, const char *name);
 void nn_update_weights(NN nn, NN gradient, float learning_rate);
 void nn_zero(NN nn);
@@ -248,6 +251,39 @@ void nn_init(NN nn)
     limit = sqrt(6) / sqrt(nn.as[l].cols + nn.as[l+1].cols);
     matrix_rand(nn.ws[l], -limit, limit);
     matrix_fill(nn.bs[l], 0);
+  }
+}
+
+void nn_train(NN nn, NN gradient, size_t image_count, size_t image_unit_len,
+              float images[][image_unit_len], int labels[], size_t epochs, 
+              float learning_rate, size_t training_batch)
+{
+  nn_init(nn);
+  
+  for (size_t e = 0; e < epochs; e++) {
+    nn_zero(gradient);
+    
+    for (size_t i = 0; i < image_count; i++) {
+      for (size_t j = 0; j < image_unit_len; j++) {
+        MATRIX_AT(NN_INPUT(nn), 0, j) = images[i][j];
+      }
+      nn_forward(nn);
+
+      for (size_t l = 0; l <= nn.count; l++) {
+        matrix_fill(gradient.as[l], 0);
+      }
+
+      matrix_copy(NN_OUTPUT(gradient), NN_OUTPUT(nn));
+      MATRIX_AT(NN_OUTPUT(gradient), 0, labels[i]) -= 1.0f;
+
+      nn_get_total_gradient(nn, gradient);
+
+      if ((i % training_batch) == (training_batch - 1)) {
+        nn_get_average_gradient(gradient, training_batch);
+        nn_update_weights(nn, gradient, learning_rate);
+        nn_zero(gradient);
+      }
+    }
   }
 }
 
