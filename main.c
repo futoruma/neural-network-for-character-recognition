@@ -1,16 +1,18 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <unistd.h>
 
 #define NN_IMPLEMENTATION
 #include "nn.h"
 
-#define TRAINING_IMAGES_PATH "./training_data/training_images"
-#define TRAINING_LABELS_PATH "./training_data/training_labels"
+#define SAVED_MODELS_PATH "./saved_models/"
 #define TEST_IMAGES_PATH "./test_data/test_images"
 #define TEST_LABELS_PATH "./test_data/test_labels"
+#define TRAINING_IMAGES_PATH "./training_data/training_images"
+#define TRAINING_LABELS_PATH "./training_data/training_labels"
 
 #define TRAINING_IMAGES_NUM 60000
 #define TEST_IMAGES_NUM 10000
@@ -61,6 +63,44 @@ void populate_labels(int data_num, int labels[])
     labels[i] = (int) char_buf[i][0];
 }
 
+void nn_save(NN nn, char *save_path)
+{
+  char filename[128];
+  FILE *fptr;
+
+  time_t current_time = time(NULL);
+  char date_string[20];
+  strftime(date_string, 20, "%Y%m%d%H%M%S", localtime(&current_time));
+
+  strcpy(filename, save_path);
+  strcat(filename, date_string);
+  strcat(filename, "__784_48_10");
+
+  fptr = fopen(filename, "wb");
+  if ((fptr = fopen(filename, "wb")) == NULL) {
+    fprintf(stderr, "Error opening the file.");
+    exit(1);
+  }
+
+  float buf[784];
+  for (size_t l = 0; l < nn.count; l++) {
+    for (size_t i = 0; i < nn.ws[l].rows; i++) {
+      for (size_t j = 0; j < nn.ws[l].cols; j++) {
+        buf[j] = MATRIX_AT(nn.ws[0], i, j);
+      }
+      fwrite(buf, sizeof(float), nn.ws[l].cols, fptr);
+    }
+    for (size_t i = 0; i < nn.bs[l].rows; i++) {
+      for (size_t j = 0; j < nn.bs[l].cols; j++) {
+        buf[j] = MATRIX_AT(nn.bs[0], i, j);
+      }
+      fwrite(buf, sizeof(float), nn.bs[l].cols, fptr);
+    }
+  }
+
+  fclose(fptr);
+}
+
 int main(void)
 {  
   load_into_buffer(TRAINING_IMAGES_PATH, IMAGES_METADATA_LEN, IMAGE_UNIT_LEN, TRAINING_IMAGES_NUM);
@@ -83,14 +123,19 @@ int main(void)
   NN nn = nn_alloc(arch, layer_count);
   NN gradient = nn_alloc(arch, layer_count);
 
-  nn_train(nn, gradient, TRAINING_IMAGES_NUM, IMAGE_UNIT_LEN, training_images,
+//  nn_train(nn, gradient, TRAINING_IMAGES_NUM, IMAGE_UNIT_LEN, training_images,
            training_labels, EPOCHS, LEARNING_RATE, TRAINING_BATCH);
 
-  nn_test(nn, "training", TRAINING_IMAGES_NUM, IMAGE_UNIT_LEN, 
-          training_images, training_labels);
+//  nn_save(nn, SAVED_MODELS_PATH);
+
+  //nn_load
+
+
+ // nn_test(nn, "training", TRAINING_IMAGES_NUM, IMAGE_UNIT_LEN, 
+ //         training_images, training_labels);
   
-  nn_test(nn, "test", TEST_IMAGES_NUM, IMAGE_UNIT_LEN, 
-          test_images, test_labels);
+ // nn_test(nn, "test", TEST_IMAGES_NUM, IMAGE_UNIT_LEN, 
+ //         test_images, test_labels);
 
   return 0;
 }
