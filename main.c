@@ -86,19 +86,47 @@ void nn_save(NN nn, char *save_path)
   for (size_t l = 0; l < nn.count; l++) {
     for (size_t i = 0; i < nn.ws[l].rows; i++) {
       for (size_t j = 0; j < nn.ws[l].cols; j++) {
-        buf[j] = MATRIX_AT(nn.ws[0], i, j);
+        buf[j] = MATRIX_AT(nn.ws[l], i, j);
       }
       fwrite(buf, sizeof(float), nn.ws[l].cols, fptr);
     }
     for (size_t i = 0; i < nn.bs[l].rows; i++) {
       for (size_t j = 0; j < nn.bs[l].cols; j++) {
-        buf[j] = MATRIX_AT(nn.bs[0], i, j);
+        buf[j] = MATRIX_AT(nn.bs[l], i, j);
       }
       fwrite(buf, sizeof(float), nn.bs[l].cols, fptr);
     }
   }
 
   fclose(fptr);
+}
+
+void nn_load(NN nn, char *file_path)
+{
+  int file_descriptor = open(file_path, O_RDONLY);
+  if (file_descriptor == -1) {
+    fprintf(stderr, "Error loading the model.");
+    exit(-1);
+  }
+
+  float buf[784];
+
+  for (size_t l = 0; l < nn.count; l++) {
+    for (size_t i = 0; i < nn.ws[l].rows; i++) {
+      read(file_descriptor, buf, nn.ws[l].cols * sizeof(float));
+      for (size_t j = 0; j < nn.ws[l].cols; j++) {
+        MATRIX_AT(nn.ws[l], i, j) = buf[j];
+      }
+    }
+    for (size_t i = 0; i < nn.bs[l].rows; i++) {
+      read(file_descriptor, buf, nn.bs[l].cols * sizeof(float));
+      for (size_t j = 0; j < nn.bs[l].cols; j++) {
+        MATRIX_AT(nn.bs[l], i, j) = buf[j];
+      }
+    }
+  }
+
+  close(file_descriptor);
 }
 
 int main(void)
@@ -123,19 +151,19 @@ int main(void)
   NN nn = nn_alloc(arch, layer_count);
   NN gradient = nn_alloc(arch, layer_count);
 
-//  nn_train(nn, gradient, TRAINING_IMAGES_NUM, IMAGE_UNIT_LEN, training_images,
+/*
+  nn_train(nn, gradient, TRAINING_IMAGES_NUM, IMAGE_UNIT_LEN, training_images,
            training_labels, EPOCHS, LEARNING_RATE, TRAINING_BATCH);
 
-//  nn_save(nn, SAVED_MODELS_PATH);
-
-  //nn_load
-
-
+  nn_save(nn, SAVED_MODELS_PATH);
+*/
+  nn_load(nn, "./saved_models/20240828224537__784_48_10");
+  
  // nn_test(nn, "training", TRAINING_IMAGES_NUM, IMAGE_UNIT_LEN, 
  //         training_images, training_labels);
   
- // nn_test(nn, "test", TEST_IMAGES_NUM, IMAGE_UNIT_LEN, 
- //         test_images, test_labels);
+  nn_test(nn, "test", TEST_IMAGES_NUM, IMAGE_UNIT_LEN, 
+          test_images, test_labels);
 
   return 0;
 }
