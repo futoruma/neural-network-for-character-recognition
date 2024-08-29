@@ -65,19 +65,19 @@ void populate_labels(int data_num, int labels[])
 
 void nn_save(NN nn, char *save_path)
 {
-  char filename[128];
+  char fullname[128];
   FILE *fptr;
 
   time_t current_time = time(NULL);
   char date_string[20];
   strftime(date_string, 20, "%Y%m%d%H%M%S", localtime(&current_time));
 
-  strcpy(filename, save_path);
-  strcat(filename, date_string);
-  strcat(filename, "__784_48_10");
+  strcpy(fullname, save_path);
+  strcat(fullname, date_string);
+  strcat(fullname, "_784x48x10");
 
-  fptr = fopen(filename, "wb");
-  if ((fptr = fopen(filename, "wb")) == NULL) {
+  fptr = fopen(fullname, "wb");
+  if ((fptr = fopen(fullname, "wb")) == NULL) {
     fprintf(stderr, "Error opening the file.");
     exit(1);
   }
@@ -101,9 +101,13 @@ void nn_save(NN nn, char *save_path)
   fclose(fptr);
 }
 
-void nn_load(NN nn, char *file_path)
+void nn_load(NN nn, char* save_path, char *filename)
 {
-  int file_descriptor = open(file_path, O_RDONLY);
+  char fullname[256];
+  strcpy(fullname, save_path);
+  strcat(fullname, filename);
+
+  int file_descriptor = open(fullname, O_RDONLY);
   if (file_descriptor == -1) {
     fprintf(stderr, "Error loading the model.");
     exit(-1);
@@ -129,41 +133,71 @@ void nn_load(NN nn, char *file_path)
   close(file_descriptor);
 }
 
-int main(void)
-{  
-  load_into_buffer(TRAINING_IMAGES_PATH, IMAGES_METADATA_LEN, IMAGE_UNIT_LEN, TRAINING_IMAGES_NUM);
-  populate_images(TRAINING_IMAGES_NUM, training_images);
-
-  load_into_buffer(TEST_IMAGES_PATH, IMAGES_METADATA_LEN, IMAGE_UNIT_LEN, TEST_IMAGES_NUM);
-  populate_images(TEST_IMAGES_NUM, test_images);
-    
-  load_into_buffer(TRAINING_LABELS_PATH, LABELS_METADATA_LEN, LABEL_UNIT_LEN, TRAINING_IMAGES_NUM);
-  populate_labels(TRAINING_IMAGES_NUM, training_labels);
-    
-  load_into_buffer(TEST_LABELS_PATH, LABELS_METADATA_LEN, LABEL_UNIT_LEN, TEST_IMAGES_NUM);
-  populate_labels(TEST_IMAGES_NUM, test_labels);
-
-  srand(time(0));
+int main(int argc, char* argv[])
+{ 
+  if (argc == 1) {
+    printf("Please specify parameters.\n");
+    return 0;
+  }
 
   size_t arch[] = {IMAGE_UNIT_LEN, 48, DIGITS};
   size_t layer_count = ARRAY_LEN(arch);
 
   NN nn = nn_alloc(arch, layer_count);
-  NN gradient = nn_alloc(arch, layer_count);
 
-/*
-  nn_train(nn, gradient, TRAINING_IMAGES_NUM, IMAGE_UNIT_LEN, training_images,
-           training_labels, EPOCHS, LEARNING_RATE, TRAINING_BATCH);
+  if ((argc == 2) && (strcmp(argv[1], "-train") == 0)) {
+    printf("Training model...\n");
+    
+    load_into_buffer(TRAINING_IMAGES_PATH, IMAGES_METADATA_LEN, 
+                     IMAGE_UNIT_LEN, TRAINING_IMAGES_NUM);
+    populate_images(TRAINING_IMAGES_NUM, training_images);
+    load_into_buffer(TRAINING_LABELS_PATH, LABELS_METADATA_LEN, 
+                     LABEL_UNIT_LEN, TRAINING_IMAGES_NUM);
+    populate_labels(TRAINING_IMAGES_NUM, training_labels);
+    
+    NN gradient = nn_alloc(arch, layer_count);
 
-  nn_save(nn, SAVED_MODELS_PATH);
-*/
-  nn_load(nn, "./saved_models/20240828224537__784_48_10");
-  
- // nn_test(nn, "training", TRAINING_IMAGES_NUM, IMAGE_UNIT_LEN, 
- //         training_images, training_labels);
-  
-  nn_test(nn, "test", TEST_IMAGES_NUM, IMAGE_UNIT_LEN, 
-          test_images, test_labels);
+    srand(time(0));
+
+    nn_train(nn, gradient, TRAINING_IMAGES_NUM, IMAGE_UNIT_LEN, training_images,
+             training_labels, EPOCHS, LEARNING_RATE, TRAINING_BATCH);
+
+    nn_save(nn, SAVED_MODELS_PATH);
+
+    printf("Model has been trained and saved.\n");
+
+    nn_test(nn, "training", TRAINING_IMAGES_NUM, IMAGE_UNIT_LEN, 
+            training_images, training_labels);
+  }
+
+  else if ((argc == 3) && (strcmp(argv[1], "-test") == 0)) {
+    printf("Testing saved model...\n");
+    
+    load_into_buffer(TEST_IMAGES_PATH, IMAGES_METADATA_LEN, 
+                     IMAGE_UNIT_LEN, TEST_IMAGES_NUM);
+    populate_images(TEST_IMAGES_NUM, test_images);
+      
+    load_into_buffer(TEST_LABELS_PATH, LABELS_METADATA_LEN, 
+                     LABEL_UNIT_LEN, TEST_IMAGES_NUM);
+    populate_labels(TEST_IMAGES_NUM, test_labels);
+
+    nn_load(nn, SAVED_MODELS_PATH, argv[2]);
+    
+    nn_test(nn, "test", TEST_IMAGES_NUM, IMAGE_UNIT_LEN, 
+            test_images, test_labels);
+  }
+
+  else if ((argc == 3) && (strcmp(argv[1], "-print") == 0)) {
+    printf("Printing saved model...\n");
+
+    nn_load(nn, SAVED_MODELS_PATH, argv[2]);
+
+    NN_PRINT(nn);
+  }
+
+  else {
+    printf("Invalid parameters.\n");
+  }
 
   return 0;
 }
