@@ -22,7 +22,7 @@
 #define LABELS_METADATA_LEN 2
 #define DIGITS 10
 #define LEARNING_RATE 0.03f
-#define EPOCHS 2 
+#define EPOCHS 300 
 #define TRAINING_BATCH 100
 
 int int_buf[IMAGES_METADATA_LEN];
@@ -63,7 +63,7 @@ void populate_labels(int data_num, int labels[])
     labels[i] = (int) char_buf[i][0];
 }
 
-void nn_save(NN nn, char *save_path)
+void nn_save(NN nn, char *save_path, float learning_rate, size_t epochs)
 {
   char fullname[128];
   FILE *fptr;
@@ -74,7 +74,16 @@ void nn_save(NN nn, char *save_path)
 
   strcpy(fullname, save_path);
   strcat(fullname, date_string);
-  strcat(fullname, "_784x48x10");
+  strcat(fullname, "_784x48x10_");
+
+  char learning_rate_string[20];
+  sprintf(learning_rate_string, "%f", learning_rate);
+  strcat(fullname, learning_rate_string);
+  strcat(fullname, "x");
+
+  char epochs_string[20];
+  sprintf(epochs_string, "%zu", epochs);
+  strcat(fullname, epochs_string);
 
   fptr = fopen(fullname, "wb");
   if ((fptr = fopen(fullname, "wb")) == NULL) {
@@ -162,7 +171,7 @@ int main(int argc, char* argv[])
     nn_train(nn, gradient, TRAINING_IMAGES_NUM, IMAGE_UNIT_LEN, training_images,
              training_labels, EPOCHS, LEARNING_RATE, TRAINING_BATCH);
 
-    nn_save(nn, SAVED_MODELS_PATH);
+    nn_save(nn, SAVED_MODELS_PATH, LEARNING_RATE, EPOCHS);
 
     printf("Model has been trained and saved.\n");
 
@@ -185,6 +194,37 @@ int main(int argc, char* argv[])
     
     nn_test(nn, "test", TEST_IMAGES_NUM, IMAGE_UNIT_LEN, 
             test_images, test_labels);
+  }
+
+  else if ((argc == 5) && (strcmp(argv[1], "-guess") == 0) &&
+           (strcmp(argv[3], "-model") == 0)) {
+    printf("Guessing the number...\n");
+    
+    nn_load(nn, SAVED_MODELS_PATH, argv[4]);
+
+    int file_descriptor = open(argv[2], O_RDONLY);
+    if (file_descriptor == -1) {
+      fprintf(stderr, "Error opening the file.");
+      exit(-1);
+    }
+
+    unsigned char buf[784];
+  
+    read(file_descriptor, buf, 13 * sizeof(unsigned char));
+    read(file_descriptor, buf, 784 * sizeof(unsigned char));   
+    
+    close(file_descriptor);
+
+    for (size_t i = 0; i < 784; i++) {
+      MATRIX_AT(NN_INPUT(nn), 0, i) = (float) buf[i] / 255.0f;
+    }
+
+    nn_guess(nn);
+
+    printf("Calculated probabilities:\n");
+    for (size_t i = 0; i < DIGITS; i++) {
+      printf("(%zu) -> %f%%\n", i, MATRIX_AT(NN_OUTPUT(nn), 0, i) * 100);
+    }
   }
 
   else if ((argc == 3) && (strcmp(argv[1], "-print") == 0)) {

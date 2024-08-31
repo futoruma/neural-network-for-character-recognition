@@ -2,10 +2,10 @@
 #define NN_H_
 
 #include <assert.h>
+#include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 
 typedef struct {
   size_t rows;
@@ -37,6 +37,7 @@ NN nn_alloc(size_t *arch, size_t arch_count);
 void nn_forward(NN nn);
 void nn_get_average_gradient(NN gradient, size_t data_num);
 void nn_get_total_gradient(NN nn, NN gradient);
+void nn_guess(NN nn);
 void nn_init(NN nn);
 void nn_test(NN nn, char *set_name, size_t image_count, size_t image_unit_len,
              float images[][image_unit_len], int labels[]);
@@ -244,6 +245,18 @@ void nn_get_total_gradient(NN nn, NN gradient)
       }
     }
   }
+}
+
+void nn_guess(NN nn)
+{
+  for (int l = 0; l < nn.count; l++) {
+    matrix_dot(nn.as[l+1], nn.as[l], nn.ws[l]);
+    matrix_sum(nn.as[l+1], nn.bs[l]);
+    if ((l + 1) < nn.count)  {
+      matrix_sig(nn.as[l+1]);
+    }
+  }
+  matrix_softmax(NN_OUTPUT(nn));
 }
 
 void nn_init(NN nn)
