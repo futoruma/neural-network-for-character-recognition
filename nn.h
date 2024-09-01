@@ -269,6 +269,50 @@ void nn_init(NN nn)
   }
 }
 
+void nn_render(Olivec_Canvas img, NN nn)
+{
+  uint32_t background_color = 0xFF181818;
+  uint32_t low_color = 0x000000FF;
+  uint32_t high_color = 0x00FFFF00;
+  olivec_fill(img, background_color);
+
+  int neuron_radius = 25;
+  int layer_border_vpad = 50;
+  int layer_border_hpad = 50;
+  int nn_width = img.width - (layer_border_hpad * 2);
+  int nn_height = img.height - (layer_border_vpad * 2);
+  int nn_x = (img.width / 2) - (nn_width / 2);
+  int nn_y = (img.height / 2) - (nn_height / 2);
+  size_t layer_count = nn.count + 1;
+  int layer_hpad = nn_width / layer_count;
+  for (size_t l = 0; l < layer_count; l++) {
+    int layer_vpad1 = nn_height / nn.as[l].cols;  
+    for (size_t i = 0; i < nn.as[l].cols; i++) {
+      int cx1 = nn_x + (layer_hpad * l) + (layer_hpad / 2);
+      int cy1 = nn_y + (layer_vpad1 * i) + (layer_vpad1 / 2);
+      if ((l + 1) < layer_count) {
+        int layer_vpad2 = nn_height / nn.as[l+1].cols;
+        for (size_t j = 0; j < nn.as[l+1].cols; j++) {
+          int cx2 = nn_x + (layer_hpad * (l + 1)) + (layer_hpad / 2);
+          int cy2 = nn_y + (layer_vpad2 * j) + (layer_vpad2 / 2);
+          uint32_t alpha = floorf(sigmoidf(MATRIX_AT(nn.ws[l], i, j)) * 255.0f);
+          uint32_t connection_color = 0xFF000000 | low_color;
+          olivec_blend_color(&connection_color, (alpha<<(8*3)) | high_color);
+          olivec_line(img, cx1, cy1, cx2, cy2, connection_color);
+        }   
+      }
+      if (l > 0) {
+          uint32_t alpha = floorf(sigmoidf(MATRIX_AT(nn.bs[l-1], 0, i)) * 255.0f);
+          uint32_t neuron_color = 0xFF000000 | low_color;
+          olivec_blend_color(&neuron_color, (alpha<<(8*3)) | high_color);
+          olivec_circle(img, cx1, cy1, neuron_radius, neuron_color);
+      } else {
+          olivec_circle(img, cx1, cy1, neuron_radius, 0xFFAAAAAA);
+      }
+    }
+  }
+}
+
 void nn_test(NN nn, char *set_name, size_t image_count, size_t image_unit_len,
              float images[][image_unit_len], int labels[])
 {
@@ -306,6 +350,8 @@ void nn_train(NN nn, NN gradient, size_t image_count, size_t image_unit_len,
 {
   nn_init(nn);
   
+  Olivec_Canvas img = olivec_canvas(img_pixels, IMG_WIDTH, IMG_HEIGHT, IMG_WIDTH);
+  
   for (size_t e = 0; e < epochs; e++) {
     nn_zero(gradient);
     
@@ -329,6 +375,14 @@ void nn_train(NN nn, NN gradient, size_t image_count, size_t image_unit_len,
         nn_update_weights(nn, gradient, learning_rate);
         nn_zero(gradient);
       }
+    }
+
+    nn_render(img, nn);
+    char img_file_path[256];
+    snprintf(img_file_path, sizeof(img_file_path), "./render/%04zu.png", e);
+
+    if (!stbi_write_png(img_file_path, img.width, img.height, 4, img_pixels, img.stride * sizeof(uint32_t))) {
+      printf("ERROR: could not save file %s\n", img_file_path);
     }
   }
 }
