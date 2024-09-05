@@ -32,7 +32,7 @@ uint32_t img_pixels[IMG_WIDTH * IMG_HEIGHT];
 #define LABELS_METADATA_LEN 2
 #define DIGITS 10
 #define LEARNING_RATE 0.03f
-#define EPOCHS 2 
+#define EPOCHS 1000 
 #define TRAINING_BATCH 100
 
 int int_buf[IMAGES_METADATA_LEN];
@@ -151,51 +151,7 @@ void nn_load(NN nn, char* save_path, char *filename)
 
   close(file_descriptor);
 }
-/*
-void nn_render(Olivec_Canvas img, NN nn)
-{
-  uint32_t background_color = 0xFF181818;
-  uint32_t low_color = 0x000000FF;
-  uint32_t high_color = 0x00FFFF00;
-  olivec_fill(img, background_color);
 
-  int neuron_radius = 25;
-  int layer_border_vpad = 50;
-  int layer_border_hpad = 50;
-  int nn_width = img.width - (layer_border_hpad * 2);
-  int nn_height = img.height - (layer_border_vpad * 2);
-  int nn_x = (img.width / 2) - (nn_width / 2);
-  int nn_y = (img.height / 2) - (nn_height / 2);
-  size_t layer_count = nn.count + 1;
-  int layer_hpad = nn_width / layer_count;
-  for (size_t l = 0; l < layer_count; l++) {
-    int layer_vpad1 = nn_height / nn.as[l].cols;  
-    for (size_t i = 0; i < nn.as[l].cols; i++) {
-      int cx1 = nn_x + (layer_hpad * l) + (layer_hpad / 2);
-      int cy1 = nn_y + (layer_vpad1 * i) + (layer_vpad1 / 2);
-      if ((l + 1) < layer_count) {
-        int layer_vpad2 = nn_height / nn.as[l+1].cols;
-        for (size_t j = 0; j < nn.as[l+1].cols; j++) {
-          int cx2 = nn_x + (layer_hpad * (l + 1)) + (layer_hpad / 2);
-          int cy2 = nn_y + (layer_vpad2 * j) + (layer_vpad2 / 2);
-          uint32_t alpha = floorf(sigmoidf(MATRIX_AT(nn.ws[l], i, j)) * 255.0f);
-          uint32_t connection_color = 0xFF000000 | low_color;
-          olivec_blend_color(&connection_color, (alpha<<(8*3)) | high_color);
-          olivec_line(img, cx1, cy1, cx2, cy2, connection_color);
-        }   
-      }
-      if (l > 0) {
-          uint32_t alpha = floorf(sigmoidf(MATRIX_AT(nn.bs[l-1], 0, i)) * 255.0f);
-          uint32_t neuron_color = 0xFF000000 | low_color;
-          olivec_blend_color(&neuron_color, (alpha<<(8*3)) | high_color);
-          olivec_circle(img, cx1, cy1, neuron_radius, neuron_color);
-      } else {
-          olivec_circle(img, cx1, cy1, neuron_radius, 0xFFAAAAAA);
-      }
-    }
-  }
-}
-*/
 int main(int argc, char* argv[])
 { 
   if (argc == 1) {
@@ -203,7 +159,7 @@ int main(int argc, char* argv[])
     return 0;
   }
 
-  size_t arch[] = {IMAGE_UNIT_LEN, 48, DIGITS};
+  size_t arch[] = {IMAGE_UNIT_LEN, 48, 24, DIGITS};
   size_t layer_count = ARRAY_LEN(arch);
 
   NN nn = nn_alloc(arch, layer_count);
@@ -225,14 +181,12 @@ int main(int argc, char* argv[])
     nn_train(nn, gradient, TRAINING_IMAGES_NUM, IMAGE_UNIT_LEN, training_images,
              training_labels, EPOCHS, LEARNING_RATE, TRAINING_BATCH);
 
-/*    
     nn_save(nn, SAVED_MODELS_PATH, LEARNING_RATE, EPOCHS);
 
     printf("Model has been trained and saved.\n");
 
     nn_test(nn, "training", TRAINING_IMAGES_NUM, IMAGE_UNIT_LEN, 
             training_images, training_labels);
-    */
   }
 
   else if ((argc == 3) && (strcmp(argv[1], "-test") == 0)) {
@@ -279,7 +233,7 @@ int main(int argc, char* argv[])
 
     printf("Calculated probabilities:\n");
     for (size_t i = 0; i < DIGITS; i++) {
-      printf("(%zu) -> %f%%\n", i, MATRIX_AT(NN_OUTPUT(nn), 0, i) * 100);
+      printf("(%zu) -> %f %%\n", i, MATRIX_AT(NN_OUTPUT(nn), 0, i) * 100);
     }
   }
 

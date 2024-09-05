@@ -377,12 +377,14 @@ void nn_train(NN nn, NN gradient, size_t image_count, size_t image_unit_len,
       }
     }
 
-    nn_render(img, nn);
-    char img_file_path[256];
-    snprintf(img_file_path, sizeof(img_file_path), "./render/%04zu.png", e);
+    if (((e % 10) == 9) || e == 0) {
+      nn_render(img, nn);
+      char img_file_path[256];
+      snprintf(img_file_path, sizeof(img_file_path), "./render/%04zu.png", e);
 
-    if (!stbi_write_png(img_file_path, img.width, img.height, 4, img_pixels, img.stride * sizeof(uint32_t))) {
-      printf("ERROR: could not save file %s\n", img_file_path);
+      if (!stbi_write_png(img_file_path, img.width, img.height, 4, img_pixels, img.stride * sizeof(uint32_t))) {
+        printf("ERROR: could not save file %s\n", img_file_path);
+      }
     }
   }
 }
