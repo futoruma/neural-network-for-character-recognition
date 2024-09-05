@@ -39,12 +39,15 @@ void nn_get_average_gradient(NN gradient, size_t data_num);
 void nn_get_total_gradient(NN nn, NN gradient);
 void nn_guess(NN nn);
 void nn_init(NN nn);
-void nn_test(NN nn, char *set_name, size_t image_count, size_t image_unit_len,
+void nn_load(NN nn, char *save_path, char *filename);
+void nn_print(NN nn, const char *name);
+void nn_render(Olivec_Canvas canvas, NN nn);
+void nn_save(NN nn, char *save_path, float learning_rate, size_t epochs);
+void nn_test(NN nn, char *set_name, size_t images_count, size_t image_unit_len,
              float images[][image_unit_len], int labels[]);
-void nn_train(NN nn, NN gradient, size_t image_count, size_t image_unit_len,
+void nn_train(NN nn, NN gradient, size_t images_count, size_t image_unit_len,
               float images[][image_unit_len], int labels[], size_t epochs, 
               float learning_rate, size_t training_batch);
-void nn_print(NN nn, const char *name);
 void nn_update_weights(NN nn, NN gradient, float learning_rate);
 void nn_zero(NN nn);
 
@@ -83,8 +86,8 @@ void matrix_copy(Matrix dst, Matrix src)
 {
   assert(dst.rows == src.rows);
   assert(dst.cols == src.cols);
-  for (size_t i = 0; i < dst.rows; i++) {
-    for (size_t j = 0; j < dst.cols; j++) {
+  for (size_t i = 0; i < dst.rows; ++i) {
+    for (size_t j = 0; j < dst.cols; ++j) {
       MATRIX_AT(dst, i, j) = MATRIX_AT(src, i, j);
     }
   }
@@ -96,10 +99,10 @@ void matrix_dot(Matrix dst, Matrix a, Matrix b)
   size_t n = a.cols;
   assert(dst.rows == a.rows);
   assert(dst.cols == b.cols);
-  for (size_t i = 0; i < dst.rows; i++) {
-    for (size_t j = 0; j < dst.cols; j++) {
+  for (size_t i = 0; i < dst.rows; ++i) {
+    for (size_t j = 0; j < dst.cols; ++j) {
       MATRIX_AT(dst, i, j) = 0;
-      for (size_t k = 0; k < n; k++) {
+      for (size_t k = 0; k < n; ++k) {
         MATRIX_AT(dst, i, j) += MATRIX_AT(a, i, k) * MATRIX_AT(b, k, j); 
       }
     }
@@ -108,8 +111,8 @@ void matrix_dot(Matrix dst, Matrix a, Matrix b)
 
 void matrix_fill(Matrix matrix, float x)
 {
-  for (size_t i = 0; i < matrix.rows; i++) {
-    for (size_t j = 0; j < matrix.cols; j++) {
+  for (size_t i = 0; i < matrix.rows; ++i) {
+    for (size_t j = 0; j < matrix.cols; ++j) {
       MATRIX_AT(matrix, i, j) = x; 
     }
   }
@@ -118,9 +121,9 @@ void matrix_fill(Matrix matrix, float x)
 void matrix_print(Matrix matrix, const char *name, size_t padding)
 {
   printf("%*s%s = [\n", (int) padding, "", name);
-  for (size_t i = 0; i < matrix.rows; i++) {
+  for (size_t i = 0; i < matrix.rows; ++i) {
     printf("%*s ", (int) padding, "");
-    for (size_t j = 0; j < matrix.cols; j++) {
+    for (size_t j = 0; j < matrix.cols; ++j) {
       printf("%f ", MATRIX_AT(matrix, i, j));
     }
     printf("\n");
@@ -130,8 +133,8 @@ void matrix_print(Matrix matrix, const char *name, size_t padding)
 
 void matrix_rand(Matrix matrix, float low, float high)
 {
-  for (size_t i = 0; i < matrix.rows; i++) {
-    for (size_t j = 0; j < matrix.cols; j++) {
+  for (size_t i = 0; i < matrix.rows; ++i) {
+    for (size_t j = 0; j < matrix.cols; ++j) {
       MATRIX_AT(matrix, i, j) = rand_float() * (high - low) + low;
     }
   }
@@ -139,8 +142,8 @@ void matrix_rand(Matrix matrix, float low, float high)
 
 void matrix_sig(Matrix matrix)
 {
-  for (size_t i = 0; i < matrix.rows; i++) {
-    for (size_t j = 0; j < matrix.cols; j++) {
+  for (size_t i = 0; i < matrix.rows; ++i) {
+    for (size_t j = 0; j < matrix.cols; ++j) {
       MATRIX_AT(matrix, i, j) = sigmoidf(MATRIX_AT(matrix, i, j));
     }
   }
@@ -149,8 +152,8 @@ void matrix_sig(Matrix matrix)
 void matrix_softmax(Matrix matrix)
 {
   float max_value = 0;
-  for (size_t i = 0; i < matrix.rows; i++) {
-    for (size_t j = 0; j < matrix.cols; j++) {
+  for (size_t i = 0; i < matrix.rows; ++i) {
+    for (size_t j = 0; j < matrix.cols; ++j) {
       if (MATRIX_AT(matrix, i, j) > max_value) {
         max_value = MATRIX_AT(matrix, i, j);
       }
@@ -158,15 +161,15 @@ void matrix_softmax(Matrix matrix)
   }
     
   float exp_sum = 0;
-  for (size_t i = 0; i < matrix.rows; i++) {
-    for (size_t j = 0; j < matrix.cols; j++) {
+  for (size_t i = 0; i < matrix.rows; ++i) {
+    for (size_t j = 0; j < matrix.cols; ++j) {
       MATRIX_AT(matrix, i, j) = expf(MATRIX_AT(matrix, i, j) - max_value);
       exp_sum += MATRIX_AT(matrix, i, j);
     }
   }
 
-  for (size_t i = 0; i < matrix.rows; i++) {
-    for (size_t j = 0; j < matrix.cols; j++) {
+  for (size_t i = 0; i < matrix.rows; ++i) {
+    for (size_t j = 0; j < matrix.cols; ++j) {
       MATRIX_AT(matrix, i, j) /= exp_sum;
     }
   }
@@ -176,8 +179,8 @@ void matrix_sum(Matrix dst, Matrix a)
 {
   assert(dst.rows == a.rows);
   assert(dst.cols == a.cols);
-  for (size_t i = 0; i < dst.rows; i++) {
-    for (size_t j = 0; j < dst.cols; j++) {
+  for (size_t i = 0; i < dst.rows; ++i) {
+    for (size_t j = 0; j < dst.cols; ++j) {
       MATRIX_AT(dst, i, j) += MATRIX_AT(a, i, j);
     }
   }
@@ -197,7 +200,7 @@ NN nn_alloc(size_t *arch, size_t arch_count)
   assert(nn.as != NULL);
 
   nn.as[0] = matrix_alloc(1, arch[0]); 
-  for (size_t i = 1; i < arch_count; i++) {
+  for (size_t i = 1; i < arch_count; ++i) {
     nn.ws[i-1] = matrix_alloc(nn.as[i-1].cols, arch[i]);
     nn.bs[i-1] = matrix_alloc(1, arch[i]);
     nn.as[i] = matrix_alloc(1, arch[i]);
@@ -207,7 +210,7 @@ NN nn_alloc(size_t *arch, size_t arch_count)
 
 void nn_forward(NN nn)
 {
-  for (int l = 0; l < nn.count; l++) {
+  for (int l = 0; l < nn.count; ++l) {
     matrix_dot(nn.as[l+1], nn.as[l], nn.ws[l]);
     matrix_sum(nn.as[l+1], nn.bs[l]);
     matrix_sig(nn.as[l+1]);
@@ -216,14 +219,14 @@ void nn_forward(NN nn)
 
 void nn_get_average_gradient(NN gradient, size_t data_num)
 {
-  for (size_t l = 0; l < gradient.count; l++) {
-    for (size_t i = 0; i < gradient.ws[l].rows; i++) {
-      for (size_t j = 0; j < gradient.ws[l].cols; j++) {
+  for (size_t l = 0; l < gradient.count; ++l) {
+    for (size_t i = 0; i < gradient.ws[l].rows; ++i) {
+      for (size_t j = 0; j < gradient.ws[l].cols; ++j) {
         MATRIX_AT(gradient.ws[l], i, j) /= data_num;
       }
     }
-    for (size_t i = 0; i < gradient.bs[l].rows; i++) {
-      for (size_t j = 0; j < gradient.bs[l].cols; j++) {
+    for (size_t i = 0; i < gradient.bs[l].rows; ++i) {
+      for (size_t j = 0; j < gradient.bs[l].cols; ++j) {
         MATRIX_AT(gradient.bs[l], i, j) /= data_num;
       }
     }
@@ -233,11 +236,11 @@ void nn_get_average_gradient(NN gradient, size_t data_num)
 void nn_get_total_gradient(NN nn, NN gradient)
 {
   for (size_t l = nn.count; l > 0; l--) {
-    for (size_t j = 0; j < nn.as[l].cols; j++) {
+    for (size_t j = 0; j < nn.as[l].cols; ++j) {
       float a = MATRIX_AT(nn.as[l], 0, j);
       float da = MATRIX_AT(gradient.as[l], 0, j);
       MATRIX_AT(gradient.bs[l-1], 0, j) += 2 * da * a * (1 - a);
-      for (size_t k = 0; k < nn.as[l-1].cols; k++) {
+      for (size_t k = 0; k < nn.as[l-1].cols; ++k) {
         float pa = MATRIX_AT(nn.as[l-1], 0, k);
         float w = MATRIX_AT(nn.ws[l-1], k, j);
         MATRIX_AT(gradient.ws[l-1], k, j) += 2 * da * a * (1 - a) * pa;
@@ -249,7 +252,7 @@ void nn_get_total_gradient(NN nn, NN gradient)
 
 void nn_guess(NN nn)
 {
-  for (int l = 0; l < nn.count; l++) {
+  for (int l = 0; l < nn.count; ++l) {
     matrix_dot(nn.as[l+1], nn.as[l], nn.ws[l]);
     matrix_sum(nn.as[l+1], nn.bs[l]);
     if ((l + 1) < nn.count)  {
@@ -262,66 +265,158 @@ void nn_guess(NN nn)
 void nn_init(NN nn)
 {
   float limit;
-  for (size_t l = 0; l < nn.count; l++) {
+  for (size_t l = 0; l < nn.count; ++l) {
     limit = sqrt(6) / sqrt(nn.as[l].cols + nn.as[l+1].cols);
     matrix_rand(nn.ws[l], -limit, limit);
     matrix_fill(nn.bs[l], 0);
   }
 }
 
-void nn_render(Olivec_Canvas img, NN nn)
+void nn_load(NN nn, char *save_path, char *filename)
+{
+  char fullname[256];
+  strcpy(fullname, save_path);
+  strcat(fullname, filename);
+
+  int file_descriptor = open(fullname, O_RDONLY);
+  if (file_descriptor == -1) {
+    fprintf(stderr, "Error loading the model.");
+    exit(1);
+  }
+
+  float buf[784];
+
+  for (size_t l = 0; l < nn.count; ++l) {
+    for (size_t i = 0; i < nn.ws[l].rows; ++i) {
+      read(file_descriptor, buf, nn.ws[l].cols * sizeof(float));
+      for (size_t j = 0; j < nn.ws[l].cols; ++j) {
+        MATRIX_AT(nn.ws[l], i, j) = buf[j];
+      }
+    }
+    for (size_t i = 0; i < nn.bs[l].rows; ++i) {
+      read(file_descriptor, buf, nn.bs[l].cols * sizeof(float));
+      for (size_t j = 0; j < nn.bs[l].cols; ++j) {
+        MATRIX_AT(nn.bs[l], i, j) = buf[j];
+      }
+    }
+  }
+
+  close(file_descriptor);
+}
+
+void nn_print(NN nn, const char *name)
+{
+  char buf[256];
+  printf("%s = [\n", name);
+  for (size_t i = 0; i < nn.count; ++i) {
+    snprintf(buf, sizeof(buf), "ws%zu", i);
+    matrix_print(nn.ws[i], buf, 4);
+    snprintf(buf, sizeof(buf), "bs%zu", i);
+    matrix_print(nn.bs[i], buf, 4);
+  }
+  printf("]\n");
+}
+
+void nn_render(Olivec_Canvas canvas, NN nn)
 {
   uint32_t background_color = 0xFF181818;
   uint32_t low_color = 0x000000FF;
   uint32_t high_color = 0x00FFFF00;
-  olivec_fill(img, background_color);
+  olivec_fill(canvas, background_color);
 
   int neuron_radius = 25;
   int layer_border_vpad = 50;
   int layer_border_hpad = 50;
-  int nn_width = img.width - (layer_border_hpad * 2);
-  int nn_height = img.height - (layer_border_vpad * 2);
-  int nn_x = (img.width / 2) - (nn_width / 2);
-  int nn_y = (img.height / 2) - (nn_height / 2);
+  int nn_width = canvas.width - (layer_border_hpad * 2);
+  int nn_height = canvas.height - (layer_border_vpad * 2);
+  int nn_x = (canvas.width / 2) - (nn_width / 2);
+  int nn_y = (canvas.height / 2) - (nn_height / 2);
   size_t layer_count = nn.count + 1;
   int layer_hpad = nn_width / layer_count;
-  for (size_t l = 0; l < layer_count; l++) {
+  for (size_t l = 0; l < layer_count; ++l) {
     int layer_vpad1 = nn_height / nn.as[l].cols;  
-    for (size_t i = 0; i < nn.as[l].cols; i++) {
+    for (size_t i = 0; i < nn.as[l].cols; ++i) {
       int cx1 = nn_x + (layer_hpad * l) + (layer_hpad / 2);
       int cy1 = nn_y + (layer_vpad1 * i) + (layer_vpad1 / 2);
       if ((l + 1) < layer_count) {
         int layer_vpad2 = nn_height / nn.as[l+1].cols;
-        for (size_t j = 0; j < nn.as[l+1].cols; j++) {
+        for (size_t j = 0; j < nn.as[l+1].cols; ++j) {
           int cx2 = nn_x + (layer_hpad * (l + 1)) + (layer_hpad / 2);
           int cy2 = nn_y + (layer_vpad2 * j) + (layer_vpad2 / 2);
           uint32_t alpha = floorf(sigmoidf(MATRIX_AT(nn.ws[l], i, j)) * 255.0f);
           uint32_t connection_color = 0xFF000000 | low_color;
           olivec_blend_color(&connection_color, (alpha<<(8*3)) | high_color);
-          olivec_line(img, cx1, cy1, cx2, cy2, connection_color);
+          olivec_line(canvas, cx1, cy1, cx2, cy2, connection_color);
         }   
       }
       if (l > 0) {
           uint32_t alpha = floorf(sigmoidf(MATRIX_AT(nn.bs[l-1], 0, i)) * 255.0f);
           uint32_t neuron_color = 0xFF000000 | low_color;
           olivec_blend_color(&neuron_color, (alpha<<(8*3)) | high_color);
-          olivec_circle(img, cx1, cy1, neuron_radius, neuron_color);
+          olivec_circle(canvas, cx1, cy1, neuron_radius, neuron_color);
       } else {
-          olivec_circle(img, cx1, cy1, neuron_radius, 0xFFAAAAAA);
+          olivec_circle(canvas, cx1, cy1, neuron_radius, 0xFFAAAAAA);
       }
     }
   }
 }
 
-void nn_test(NN nn, char *set_name, size_t image_count, size_t image_unit_len,
+void nn_save(NN nn, char *save_path, float learning_rate, size_t epochs)
+{
+  char fullname[128];
+  FILE *fptr;
+
+  time_t current_time = time(NULL);
+  char date_string[32];
+  strftime(date_string, 32, "%Y%m%d%H%M%S", localtime(&current_time));
+
+  strcpy(fullname, save_path);
+  strcat(fullname, date_string);
+  strcat(fullname, "_arch_");
+
+  char learning_rate_string[32];
+  sprintf(learning_rate_string, "%f", learning_rate);
+  strcat(fullname, learning_rate_string);
+  strcat(fullname, "x");
+
+  char epochs_string[32];
+  sprintf(epochs_string, "%zu", epochs);
+  strcat(fullname, epochs_string);
+
+  fptr = fopen(fullname, "wb");
+  if ((fptr = fopen(fullname, "wb")) == NULL) {
+    fprintf(stderr, "Error opening the file.");
+    exit(1);
+  }
+
+  float buf[784];
+  for (size_t l = 0; l < nn.count; ++l) {
+    for (size_t i = 0; i < nn.ws[l].rows; ++i) {
+      for (size_t j = 0; j < nn.ws[l].cols; ++j) {
+        buf[j] = MATRIX_AT(nn.ws[l], i, j);
+      }
+      fwrite(buf, sizeof(float), nn.ws[l].cols, fptr);
+    }
+    for (size_t i = 0; i < nn.bs[l].rows; ++i) {
+      for (size_t j = 0; j < nn.bs[l].cols; ++j) {
+        buf[j] = MATRIX_AT(nn.bs[l], i, j);
+      }
+      fwrite(buf, sizeof(float), nn.bs[l].cols, fptr);
+    }
+  }
+
+  fclose(fptr);
+}
+
+void nn_test(NN nn, char *set_name, size_t images_count, size_t image_unit_len,
              float images[][image_unit_len], int labels[])
 {
   size_t correct_count = 0;
   size_t max_digit = 0;
   float max_value = 0.0f;
 
-  for (size_t i = 0; i < image_count; i++) {
-    for (size_t j = 0; j < image_unit_len; j++) {
+  for (size_t i = 0; i < images_count; ++i) {
+    for (size_t j = 0; j < image_unit_len; ++j) {
       MATRIX_AT(NN_INPUT(nn), 0, j) = images[i][j];
     }
     nn_forward(nn);
@@ -329,7 +424,7 @@ void nn_test(NN nn, char *set_name, size_t image_count, size_t image_unit_len,
     max_digit = 0;
     max_value = 0.0f;
 
-    for (size_t d = 0; d < NN_OUTPUT(nn).cols; d++) {
+    for (size_t d = 0; d < NN_OUTPUT(nn).cols; ++d) {
       if (MATRIX_AT(NN_OUTPUT(nn), 0, d) > max_value) {
         max_value = MATRIX_AT(NN_OUTPUT(nn), 0, d);
         max_digit = d;
@@ -341,27 +436,29 @@ void nn_test(NN nn, char *set_name, size_t image_count, size_t image_unit_len,
     } 
   }
   printf("Forwarded %s set. ", set_name);
-  printf("Accuracy: %zu / %zu.\n", correct_count, image_count);
+  printf("Accuracy: %zu / %zu.\n", correct_count, images_count);
 }
 
-void nn_train(NN nn, NN gradient, size_t image_count, size_t image_unit_len,
-              float images[][image_unit_len], int labels[], size_t epochs, 
+void nn_train(NN nn, NN gradient, size_t images_count, size_t image_unit_len,
+              float images[][image_unit_len], int labels[], size_t epochs,
               float learning_rate, size_t training_batch)
 {
   nn_init(nn);
   
-  Olivec_Canvas img = olivec_canvas(img_pixels, IMG_WIDTH, IMG_HEIGHT, IMG_WIDTH);
+  Olivec_Canvas canvas = olivec_canvas(
+      canvas_pixels, RENDER_WIDTH, RENDER_HEIGHT, RENDER_WIDTH
+      );
   
-  for (size_t e = 0; e < epochs; e++) {
+  for (size_t e = 0; e < epochs; ++e) {
     nn_zero(gradient);
     
-    for (size_t i = 0; i < image_count; i++) {
-      for (size_t j = 0; j < image_unit_len; j++) {
+    for (size_t i = 0; i < images_count; ++i) {
+      for (size_t j = 0; j < image_unit_len; ++j) {
         MATRIX_AT(NN_INPUT(nn), 0, j) = images[i][j];
       }
       nn_forward(nn);
 
-      for (size_t l = 0; l <= nn.count; l++) {
+      for (size_t l = 0; l <= nn.count; ++l) {
         matrix_fill(gradient.as[l], 0);
       }
 
@@ -378,40 +475,28 @@ void nn_train(NN nn, NN gradient, size_t image_count, size_t image_unit_len,
     }
 
     if (((e % 10) == 9) || e == 0) {
-      nn_render(img, nn);
-      char img_file_path[256];
-      snprintf(img_file_path, sizeof(img_file_path), "./render/%04zu.png", e);
+      nn_render(canvas, nn);
+      char canvas_filepath[256];
+      snprintf(canvas_filepath, sizeof(canvas_filepath), "./render/%04zu.png", e);
 
-      if (!stbi_write_png(img_file_path, img.width, img.height, 4, img_pixels, img.stride * sizeof(uint32_t))) {
-        printf("ERROR: could not save file %s\n", img_file_path);
+      if (!stbi_write_png(canvas_filepath, canvas.width, canvas.height, 4,
+            canvas_pixels, canvas.stride * sizeof(uint32_t))) {
+        printf("ERROR: could not save file %s\n", canvas_filepath);
       }
     }
   }
-}
-
-void nn_print(NN nn, const char *name)
-{
-  char buf[256];
-  printf("%s = [\n", name);
-  for (size_t i = 0; i < nn.count; i++) {
-    snprintf(buf, sizeof(buf), "ws%zu", i);
-    matrix_print(nn.ws[i], buf, 4);
-    snprintf(buf, sizeof(buf), "bs%zu", i);
-    matrix_print(nn.bs[i], buf, 4);
-  }
-  printf("]\n");
 }
 
 void nn_update_weights(NN nn, NN gradient, float learning_rate)
 {
-  for (size_t l = 0; l < gradient.count; l++) {
-    for (size_t i = 0; i < gradient.ws[l].rows; i++) {
-      for (size_t j = 0; j < gradient.ws[l].cols; j++) {
+  for (size_t l = 0; l < gradient.count; ++l) {
+    for (size_t i = 0; i < gradient.ws[l].rows; ++i) {
+      for (size_t j = 0; j < gradient.ws[l].cols; ++j) {
         MATRIX_AT(nn.ws[l], i, j) -= learning_rate * MATRIX_AT(gradient.ws[l], i, j);
       }
     }
-    for (size_t i = 0; i < gradient.bs[l].rows; i++) {
-      for (size_t j = 0; j < gradient.bs[l].cols; j++) {
+    for (size_t i = 0; i < gradient.bs[l].rows; ++i) {
+      for (size_t j = 0; j < gradient.bs[l].cols; ++j) {
         MATRIX_AT(nn.bs[l], i, j) -= learning_rate * MATRIX_AT(gradient.bs[l], i, j);
       }
     }
@@ -420,7 +505,7 @@ void nn_update_weights(NN nn, NN gradient, float learning_rate)
 
 void nn_zero(NN nn)
 {
-  for (size_t i = 0; i < nn.count; i++) {
+  for (size_t i = 0; i < nn.count; ++i) {
     matrix_fill(nn.ws[i], 0);
     matrix_fill(nn.bs[i], 0);
     matrix_fill(nn.as[i], 0);
