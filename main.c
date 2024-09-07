@@ -35,50 +35,68 @@ uint32_t canvas_pixels[RENDER_WIDTH * RENDER_HEIGHT];
 #define LEARNING_RATE 0.03f
 #define TRAINING_BATCH 100
 
-int int_buf[IMAGES_METADATA_LEN];
-unsigned char char_buf[TRAINING_IMAGES_COUNT][IMAGE_UNIT_LEN];
-
 float training_images[TRAINING_IMAGES_COUNT][IMAGE_UNIT_LEN];
 float test_images[TEST_IMAGES_COUNT][IMAGE_UNIT_LEN];
 int training_labels[TRAINING_IMAGES_COUNT];
 int test_labels[TEST_IMAGES_COUNT];
 
-void load_into_buffer(char *file_path, int meta_len, int unit_len, int data_num)
+void dataset_load(char *dataset_name, float images[][IMAGE_UNIT_LEN], int *labels)
 {
-  int file_descriptor = open(file_path, O_RDONLY);
-  if (file_descriptor == -1) {
-    fprintf(stderr, "Error opening the file.");
-    exit(-1);
+  int images_count;
+  char *images_path, *labels_path;
+  if (strcmp(dataset_name, "training") == 0) {
+    images_count = TRAINING_IMAGES_COUNT;
+    images_path = TRAINING_IMAGES_PATH;
+    labels_path = TRAINING_LABELS_PATH;
+  } else if (strcmp(dataset_name, "test") == 0) {
+    images_count = TEST_IMAGES_COUNT;
+    images_path = TEST_IMAGES_PATH;
+    labels_path = TEST_LABELS_PATH;
+  } else {
+    fprintf(stderr, "Unknown dataset.");
+    exit(1);
   }
-  
-  read(file_descriptor, int_buf, meta_len * sizeof(int));
-    
-  for (size_t i = 0; i < data_num; ++i) {
-    read(file_descriptor, char_buf[i], unit_len * sizeof(unsigned char));   
+
+  int file_descriptor = open(images_path, O_RDONLY);
+  if (file_descriptor == -1) {
+    fprintf(stderr, "Error opening the images file.");
+    exit(1);
+  }
+
+  int metadata_buf[IMAGES_METADATA_LEN]; 
+  read(file_descriptor, metadata_buf, IMAGES_METADATA_LEN * sizeof(int));
+
+  unsigned char image_buf[IMAGE_UNIT_LEN];
+  for (size_t i = 0; i < images_count; ++i) {
+    read(file_descriptor, image_buf, IMAGE_UNIT_LEN * sizeof(unsigned char));   
+    for (size_t j = 0; j < IMAGE_UNIT_LEN; ++j)
+      images[i][j]  = (float) image_buf[j] / 255.0f;
+  }
+
+  close(file_descriptor);
+
+  file_descriptor = open(labels_path, O_RDONLY);
+  if (file_descriptor == -1) {
+    fprintf(stderr, "Error opening the labels file.");
+    exit(1);
+  }
+
+  read(file_descriptor, metadata_buf, LABELS_METADATA_LEN * sizeof(int));
+
+  unsigned char label_buf[LABEL_UNIT_LEN];
+  for (size_t i = 0; i < images_count; ++i) {
+    read(file_descriptor, label_buf, LABEL_UNIT_LEN * sizeof(unsigned char));   
+    labels[i] = (int) label_buf[0];
   }
 
   close(file_descriptor);
 }
 
-void populate_images(int data_num, float images[][IMAGE_UNIT_LEN])
-{
-  for (size_t i = 0; i < data_num; ++i)
-    for (size_t j = 0; j < IMAGE_UNIT_LEN; ++j)
-      images[i][j]  = (float) char_buf[i][j] / 255.0f;
-}
-
-void populate_labels(int data_num, int labels[])
-{
-  for (size_t i = 0; i < data_num; ++i)
-    labels[i] = (int) char_buf[i][0];
-}
-
-
 int main(int argc, char *argv[])
 { 
   if (argc == 1) {
-    printf("Please specify parameters.\n");
-    return 0;
+    fprintf(stderr, "Please specify parameters.");
+    return 1;
   }
 
   size_t arch[] = {IMAGE_UNIT_LEN, 48, 24, DIGITS};
@@ -88,13 +106,8 @@ int main(int argc, char *argv[])
 
   if ((argc == 2) && (strcmp(argv[1], "-train") == 0)) {
     printf("Training model...\n");
-    
-    load_into_buffer(TRAINING_IMAGES_PATH, IMAGES_METADATA_LEN, 
-                     IMAGE_UNIT_LEN, TRAINING_IMAGES_COUNT);
-    populate_images(TRAINING_IMAGES_COUNT, training_images);
-    load_into_buffer(TRAINING_LABELS_PATH, LABELS_METADATA_LEN, 
-                     LABEL_UNIT_LEN, TRAINING_IMAGES_COUNT);
-    populate_labels(TRAINING_IMAGES_COUNT, training_labels);
+
+    dataset_load("training", training_images, training_labels);
     
     NN gradient = nn_alloc(arch, layer_count);
 
@@ -114,21 +127,8 @@ int main(int argc, char *argv[])
   else if ((argc == 3) && (strcmp(argv[1], "-test") == 0)) {
     printf("Testing saved model...\n");
     
-    load_into_buffer(TEST_IMAGES_PATH, IMAGES_METADATA_LEN, 
-                     IMAGE_UNIT_LEN, TEST_IMAGES_COUNT);
-    populate_images(TEST_IMAGES_COUNT, test_images);
-      
-    load_into_buffer(TEST_LABELS_PATH, LABELS_METADATA_LEN, 
-                     LABEL_UNIT_LEN, TEST_IMAGES_COUNT);
-    populate_labels(TEST_IMAGES_COUNT, test_labels);
-
-    load_into_buffer(TRAINING_IMAGES_PATH, IMAGES_METADATA_LEN, 
-                     IMAGE_UNIT_LEN, TRAINING_IMAGES_COUNT);
-    populate_images(TRAINING_IMAGES_COUNT, training_images);
-
-    load_into_buffer(TRAINING_LABELS_PATH, LABELS_METADATA_LEN, 
-                     LABEL_UNIT_LEN, TRAINING_IMAGES_COUNT);
-    populate_labels(TRAINING_IMAGES_COUNT, training_labels);
+    dataset_load("training", training_images, training_labels);
+    dataset_load("test", test_images, test_labels);
 
     nn_load(nn, SAVED_MODELS_PATH, argv[2]);
     
@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
     int file_descriptor = open(argv[2], O_RDONLY);
     if (file_descriptor == -1) {
       fprintf(stderr, "Error opening the file.");
-      exit(-1);
+      exit(1);
     }
 
     unsigned char buf[784];
