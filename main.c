@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <unistd.h>
 
 #define RENDER_HEIGHT 3240
@@ -17,6 +16,8 @@ uint32_t canvas_pixels[RENDER_WIDTH * RENDER_HEIGHT];
 #define NN_IMPLEMENTATION
 #include "nn.h"
 
+#define MAX_FILEPATH_LEN 256
+#define RENDER_PATH "./render/"
 #define SAVED_MODELS_PATH "./saved_models/"
 #define TEST_IMAGES_PATH "./test_data/test_images"
 #define TEST_LABELS_PATH "./test_data/test_labels"
@@ -31,9 +32,11 @@ uint32_t canvas_pixels[RENDER_WIDTH * RENDER_HEIGHT];
 #define TRAINING_IMAGES_COUNT 60000
 
 #define DIGITS 10
-#define EPOCHS 1000 
+#define EPOCHS 2 
 #define LEARNING_RATE 0.03f
 #define TRAINING_BATCH 100
+
+#define PNG_CHANNELS 4
 
 float training_images[TRAINING_IMAGES_COUNT][IMAGE_UNIT_LEN];
 float test_images[TEST_IMAGES_COUNT][IMAGE_UNIT_LEN];
@@ -105,42 +108,30 @@ int main(int argc, char *argv[])
   NN nn = nn_alloc(arch, layer_count);
 
   if ((argc == 2) && (strcmp(argv[1], "-train") == 0)) {
-    printf("Training model...\n");
-
     dataset_load("training", training_images, training_labels);
-    
+    dataset_load("test", test_images, test_labels);
+
     NN gradient = nn_alloc(arch, layer_count);
 
-    srand(time(0));
-
-    nn_train(nn, gradient, TRAINING_IMAGES_COUNT, IMAGE_UNIT_LEN, training_images,
-             training_labels, EPOCHS, LEARNING_RATE, TRAINING_BATCH);
+    nn_train(nn, gradient, TRAINING_IMAGES_COUNT, IMAGE_UNIT_LEN, training_images, training_labels, EPOCHS, LEARNING_RATE, TRAINING_BATCH);
 
     nn_save(nn, SAVED_MODELS_PATH, LEARNING_RATE, EPOCHS);
 
-    printf("Model has been trained and saved.\n");
-
-    nn_test(nn, "training", TRAINING_IMAGES_COUNT, IMAGE_UNIT_LEN, 
-            training_images, training_labels);
+    nn_test(nn, "training", TRAINING_IMAGES_COUNT, IMAGE_UNIT_LEN, training_images, training_labels);
+    nn_test(nn, "test", TEST_IMAGES_COUNT, IMAGE_UNIT_LEN, test_images, test_labels);
   }
 
   else if ((argc == 3) && (strcmp(argv[1], "-test") == 0)) {
-    printf("Testing saved model...\n");
-    
     dataset_load("training", training_images, training_labels);
     dataset_load("test", test_images, test_labels);
 
     nn_load(nn, SAVED_MODELS_PATH, argv[2]);
     
-    nn_test(nn, "training", TRAINING_IMAGES_COUNT, IMAGE_UNIT_LEN, 
-            training_images, training_labels);
-
-    nn_test(nn, "test", TEST_IMAGES_COUNT, IMAGE_UNIT_LEN, 
-            test_images, test_labels);
+    nn_test(nn, "training", TRAINING_IMAGES_COUNT, IMAGE_UNIT_LEN, training_images, training_labels);
+    nn_test(nn, "test", TEST_IMAGES_COUNT, IMAGE_UNIT_LEN, test_images, test_labels);
   }
 
-  else if ((argc == 5) && (strcmp(argv[1], "-guess") == 0) &&
-           (strcmp(argv[3], "-model") == 0)) {
+  else if ((argc == 5) && (strcmp(argv[1], "-guess") == 0) && (strcmp(argv[3], "-model") == 0)) {
     printf("Guessing the number...\n");
     
     nn_load(nn, SAVED_MODELS_PATH, argv[4]);
@@ -171,32 +162,31 @@ int main(int argc, char *argv[])
   }
 
   else if ((argc == 3) && (strcmp(argv[1], "-print") == 0)) {
-    printf("Printing saved model...\n");
-
-    nn_load(nn, SAVED_MODELS_PATH, argv[2]);
+    char *model_name = argv[2];
+    nn_load(nn, SAVED_MODELS_PATH, model_name);
 
     NN_PRINT(nn);
   }
 
   else if ((argc == 3) && (strcmp(argv[1], "-render") == 0)) {
-    printf("Rendering saved model...\n");
-
-    nn_load(nn, SAVED_MODELS_PATH, argv[2]);
+    char *model_name = argv[2];
+    nn_load(nn, SAVED_MODELS_PATH, model_name);
 
     Olivec_Canvas canvas = olivec_canvas(canvas_pixels, RENDER_WIDTH, RENDER_HEIGHT, RENDER_WIDTH);
-  
     nn_render(canvas, nn);
 
-    char canvas_filepath[256];
-    snprintf(canvas_filepath, sizeof(canvas_filepath), "./render/%s.png", argv[2]);
+    char canvas_filepath[MAX_FILEPATH_LEN];
+    snprintf(canvas_filepath, sizeof(canvas_filepath), "%s%s.png", RENDER_PATH, model_name);
 
-    if (!stbi_write_png(canvas_filepath, canvas.width, canvas.height, 4, canvas_pixels, canvas.stride * sizeof(uint32_t))) {
-      printf("ERROR: could not save file %s\n", canvas_filepath);
+    if (!stbi_write_png(canvas_filepath, canvas.width, canvas.height, PNG_CHANNELS, canvas_pixels, canvas.stride * sizeof(uint32_t))) {
+      fprintf(stderr, "Could not save the file.");
+      return 1;
     }
   }
 
   else {
-    printf("Invalid parameters.\n");
+    fprintf(stderr, "Invalid parameters.");
+    return 1;
   }
 
   return 0;

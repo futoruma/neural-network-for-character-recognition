@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 typedef struct {
   size_t rows;
@@ -306,7 +307,10 @@ void nn_load(NN nn, char *save_path, char *filename)
 
 void nn_print(NN nn, const char *name)
 {
+  printf("Printing the model...\n");
+  
   char buf[256];
+  
   printf("%s = [\n", name);
   for (size_t i = 0; i < nn.count; ++i) {
     snprintf(buf, sizeof(buf), "ws%zu", i);
@@ -319,6 +323,8 @@ void nn_print(NN nn, const char *name)
 
 void nn_render(Olivec_Canvas canvas, NN nn)
 {
+  printf("Rendering the model...\n");
+
   uint32_t background_color = 0xFF181818;
   uint32_t low_color = 0x000000FF;
   uint32_t high_color = 0x00FFFF00;
@@ -359,10 +365,14 @@ void nn_render(Olivec_Canvas canvas, NN nn)
       }
     }
   }
+  
+  printf("The model has been rendered.\n");
 }
 
 void nn_save(NN nn, char *save_path, float learning_rate, size_t epochs)
 {
+  printf("Saving the model...\n");
+
   char fullname[128];
   FILE *fptr;
 
@@ -406,11 +416,14 @@ void nn_save(NN nn, char *save_path, float learning_rate, size_t epochs)
   }
 
   fclose(fptr);
+  printf("The model has been saved.\n");
 }
 
 void nn_test(NN nn, char *set_name, size_t images_count, size_t image_unit_len,
              float images[][image_unit_len], int labels[])
 {
+  printf("Testing the model...");
+
   size_t correct_count = 0;
   size_t max_digit = 0;
   float max_value = 0.0f;
@@ -443,6 +456,10 @@ void nn_train(NN nn, NN gradient, size_t images_count, size_t image_unit_len,
               float images[][image_unit_len], int labels[], size_t epochs,
               float learning_rate, size_t training_batch)
 {
+  printf("Training the model...\n");
+  
+  srand(time(0));
+
   nn_init(nn);
   
   Olivec_Canvas canvas = olivec_canvas(
@@ -481,10 +498,11 @@ void nn_train(NN nn, NN gradient, size_t images_count, size_t image_unit_len,
 
       if (!stbi_write_png(canvas_filepath, canvas.width, canvas.height, 4,
             canvas_pixels, canvas.stride * sizeof(uint32_t))) {
-        printf("ERROR: could not save file %s\n", canvas_filepath);
+        fprintf(stderr, "Could not save the file.");
       }
     }
   }
+  printf("The model has been trained.\n");
 }
 
 void nn_update_weights(NN nn, NN gradient, float learning_rate)
