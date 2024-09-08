@@ -4,6 +4,30 @@
 #include <string.h>
 #include <unistd.h>
 
+#define DIGITS 10
+#define EPOCHS 2 
+#define HIDDEN_LAYERS 48, 24
+#define LEARNING_RATE 0.03f
+#define TRAINING_BATCH 100
+
+#define LABEL_UNIT_LEN 1
+#define LABELS_METADATA_LEN 2
+#define IMAGE_UNIT_LEN 784
+#define IMAGES_METADATA_LEN 4
+#define TEST_IMAGES_COUNT 10000
+#define TRAINING_IMAGES_COUNT 60000
+
+#define MAX_FILEPATH_LEN 256
+#define RENDER_PATH "./render/"
+#define SAVED_MODELS_PATH "./saved_models/"
+#define TEST_IMAGES_PATH "./test_data/test_images"
+#define TEST_LABELS_PATH "./test_data/test_labels"
+#define TRAINING_IMAGES_PATH "./training_data/training_images"
+#define TRAINING_LABELS_PATH "./training_data/training_labels"
+
+#define MAX_BRIGHTNESS_F 255.0f
+#define PGM_P5_METADATA_LEN 13
+#define PNG_CHANNELS 4
 #define RENDER_HEIGHT 3240
 #define RENDER_WIDTH 3240
 uint32_t canvas_pixels[RENDER_WIDTH * RENDER_HEIGHT];
@@ -15,28 +39,6 @@ uint32_t canvas_pixels[RENDER_WIDTH * RENDER_HEIGHT];
 
 #define NN_IMPLEMENTATION
 #include "nn.h"
-
-#define MAX_FILEPATH_LEN 256
-#define RENDER_PATH "./render/"
-#define SAVED_MODELS_PATH "./saved_models/"
-#define TEST_IMAGES_PATH "./test_data/test_images"
-#define TEST_LABELS_PATH "./test_data/test_labels"
-#define TRAINING_IMAGES_PATH "./training_data/training_images"
-#define TRAINING_LABELS_PATH "./training_data/training_labels"
-
-#define LABEL_UNIT_LEN 1
-#define LABELS_METADATA_LEN 2
-#define IMAGE_UNIT_LEN 784
-#define IMAGES_METADATA_LEN 4
-#define TEST_IMAGES_COUNT 10000
-#define TRAINING_IMAGES_COUNT 60000
-
-#define DIGITS 10
-#define EPOCHS 2 
-#define LEARNING_RATE 0.03f
-#define TRAINING_BATCH 100
-
-#define PNG_CHANNELS 4
 
 float training_images[TRAINING_IMAGES_COUNT][IMAGE_UNIT_LEN];
 float test_images[TEST_IMAGES_COUNT][IMAGE_UNIT_LEN];
@@ -73,7 +75,7 @@ void dataset_load(char *dataset_name, float images[][IMAGE_UNIT_LEN], int *label
   for (size_t i = 0; i < images_count; ++i) {
     read(file_descriptor, image_buf, IMAGE_UNIT_LEN * sizeof(unsigned char));   
     for (size_t j = 0; j < IMAGE_UNIT_LEN; ++j)
-      images[i][j]  = (float) image_buf[j] / 255.0f;
+      images[i][j]  = (float) image_buf[j] / MAX_BRIGHTNESS_F;
   }
 
   close(file_descriptor);
@@ -95,70 +97,65 @@ void dataset_load(char *dataset_name, float images[][IMAGE_UNIT_LEN], int *label
   close(file_descriptor);
 }
 
-int main(int argc, char *argv[])
-{ 
-  if (argc == 1) {
-    fprintf(stderr, "Please specify parameters.");
-    return 1;
+void pmg_load(char *image_path, NN nn)
+{
+  int file_descriptor = open(image_path, O_RDONLY);
+  if (file_descriptor == -1) {
+    fprintf(stderr, "Error opening the file.");
+    exit(1);
   }
 
-  size_t arch[] = {IMAGE_UNIT_LEN, 48, 24, DIGITS};
+  unsigned char buf[IMAGE_UNIT_LEN];
+
+  read(file_descriptor, buf, PGM_P5_METADATA_LEN * sizeof(unsigned char));
+  read(file_descriptor, buf, IMAGE_UNIT_LEN * sizeof(unsigned char));   
+  
+  close(file_descriptor);
+
+  for (size_t i = 0; i < IMAGE_UNIT_LEN; ++i) {
+    MATRIX_AT(NN_INPUT(nn), 0, i) = (float) buf[i] / MAX_BRIGHTNESS_F;
+  }
+}
+
+int main(int argc, char *argv[])
+{ 
+  size_t arch[] = {IMAGE_UNIT_LEN, HIDDEN_LAYERS, DIGITS};
   size_t layer_count = ARRAY_LEN(arch);
 
   NN nn = nn_alloc(arch, layer_count);
 
   if ((argc == 2) && (strcmp(argv[1], "-train") == 0)) {
-    dataset_load("training", training_images, training_labels);
-    dataset_load("test", test_images, test_labels);
-
     NN gradient = nn_alloc(arch, layer_count);
 
+    dataset_load("training", training_images, training_labels);
     nn_train(nn, gradient, TRAINING_IMAGES_COUNT, IMAGE_UNIT_LEN, training_images, training_labels, EPOCHS, LEARNING_RATE, TRAINING_BATCH);
+    nn_test(nn, "training", TRAINING_IMAGES_COUNT, IMAGE_UNIT_LEN, training_images, training_labels);
 
     nn_save(nn, SAVED_MODELS_PATH, LEARNING_RATE, EPOCHS);
 
-    nn_test(nn, "training", TRAINING_IMAGES_COUNT, IMAGE_UNIT_LEN, training_images, training_labels);
+    dataset_load("test", test_images, test_labels);
     nn_test(nn, "test", TEST_IMAGES_COUNT, IMAGE_UNIT_LEN, test_images, test_labels);
   }
 
   else if ((argc == 3) && (strcmp(argv[1], "-test") == 0)) {
-    dataset_load("training", training_images, training_labels);
-    dataset_load("test", test_images, test_labels);
-
-    nn_load(nn, SAVED_MODELS_PATH, argv[2]);
+    char *model_name = argv[2];
+    nn_load(nn, SAVED_MODELS_PATH, model_name);
     
+    dataset_load("training", training_images, training_labels);
     nn_test(nn, "training", TRAINING_IMAGES_COUNT, IMAGE_UNIT_LEN, training_images, training_labels);
+
+    dataset_load("test", test_images, test_labels);
     nn_test(nn, "test", TEST_IMAGES_COUNT, IMAGE_UNIT_LEN, test_images, test_labels);
   }
 
   else if ((argc == 5) && (strcmp(argv[1], "-guess") == 0) && (strcmp(argv[3], "-model") == 0)) {
-    printf("Guessing the number...\n");
-    
-    nn_load(nn, SAVED_MODELS_PATH, argv[4]);
+    char *model_name = argv[4];
+    nn_load(nn, SAVED_MODELS_PATH, model_name);
 
-    int file_descriptor = open(argv[2], O_RDONLY);
-    if (file_descriptor == -1) {
-      fprintf(stderr, "Error opening the file.");
-      exit(1);
-    }
-
-    unsigned char buf[784];
-  
-    read(file_descriptor, buf, 13 * sizeof(unsigned char));
-    read(file_descriptor, buf, 784 * sizeof(unsigned char));   
-    
-    close(file_descriptor);
-
-    for (size_t i = 0; i < 784; ++i) {
-      MATRIX_AT(NN_INPUT(nn), 0, i) = (float) buf[i] / 255.0f;
-    }
+    char *guess_image_path = argv[2];
+    pmg_load(guess_image_path, nn);
 
     nn_guess(nn);
-
-    printf("Calculated probabilities:\n");
-    for (size_t i = 0; i < DIGITS; ++i) {
-      printf("(%zu) -> %f %%\n", i, MATRIX_AT(NN_OUTPUT(nn), 0, i) * 100);
-    }
   }
 
   else if ((argc == 3) && (strcmp(argv[1], "-print") == 0)) {
