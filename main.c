@@ -1,7 +1,11 @@
+#include <assert.h>
 #include <fcntl.h>
+#include <math.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #define DIGITS 10
@@ -25,9 +29,15 @@
 #define TRAINING_IMAGES_PATH "./training_data/training_images"
 #define TRAINING_LABELS_PATH "./training_data/training_labels"
 
-#define MAX_BRIGHTNESS_F 255.0f
+#define BACKGROUND_COLOR 0xFF181818
+#define HIGH_COLOR 0x00FFFF00
+#define LOW_COLOR 0x000000FF
+#define MAX_ACTIVATION 1.0f
+#define MAX_BRIGHTNESS 255.0f
+#define MAX_PERCENT 100
 #define PGM_P5_METADATA_LEN 13
 #define PNG_CHANNELS 4
+#define RENDER_STEP 10
 #define RENDER_HEIGHT 3240
 #define RENDER_WIDTH 3240
 uint32_t canvas_pixels[RENDER_WIDTH * RENDER_HEIGHT];
@@ -75,7 +85,7 @@ void dataset_load(char *dataset_name, float images[][IMAGE_UNIT_LEN], int *label
   for (size_t i = 0; i < images_count; ++i) {
     read(file_descriptor, image_buf, IMAGE_UNIT_LEN * sizeof(unsigned char));   
     for (size_t j = 0; j < IMAGE_UNIT_LEN; ++j)
-      images[i][j]  = (float) image_buf[j] / MAX_BRIGHTNESS_F;
+      images[i][j]  = (float) image_buf[j] / MAX_BRIGHTNESS;
   }
 
   close(file_descriptor);
@@ -113,7 +123,7 @@ void pmg_load(char *image_path, NN nn)
   close(file_descriptor);
 
   for (size_t i = 0; i < IMAGE_UNIT_LEN; ++i) {
-    MATRIX_AT(NN_INPUT(nn), 0, i) = (float) buf[i] / MAX_BRIGHTNESS_F;
+    MATRIX_AT(NN_INPUT(nn), 0, i) = (float) buf[i] / MAX_BRIGHTNESS;
   }
 }
 
@@ -128,13 +138,13 @@ int main(int argc, char *argv[])
     NN gradient = nn_alloc(arch, layer_count);
 
     dataset_load("training", training_images, training_labels);
-    nn_train(nn, gradient, TRAINING_IMAGES_COUNT, IMAGE_UNIT_LEN, training_images, training_labels, EPOCHS, LEARNING_RATE, TRAINING_BATCH);
-    nn_test(nn, "training", TRAINING_IMAGES_COUNT, IMAGE_UNIT_LEN, training_images, training_labels);
+    nn_train(nn, gradient, TRAINING_IMAGES_COUNT, training_images, training_labels);
+    nn_test(nn, "training", TRAINING_IMAGES_COUNT, training_images, training_labels);
 
-    nn_save(nn, SAVED_MODELS_PATH, LEARNING_RATE, EPOCHS);
+    nn_save(nn, SAVED_MODELS_PATH);
 
     dataset_load("test", test_images, test_labels);
-    nn_test(nn, "test", TEST_IMAGES_COUNT, IMAGE_UNIT_LEN, test_images, test_labels);
+    nn_test(nn, "test", TEST_IMAGES_COUNT, test_images, test_labels);
   }
 
   else if ((argc == 3) && (strcmp(argv[1], "-test") == 0)) {
@@ -142,10 +152,10 @@ int main(int argc, char *argv[])
     nn_load(nn, SAVED_MODELS_PATH, model_name);
     
     dataset_load("training", training_images, training_labels);
-    nn_test(nn, "training", TRAINING_IMAGES_COUNT, IMAGE_UNIT_LEN, training_images, training_labels);
+    nn_test(nn, "training", TRAINING_IMAGES_COUNT, training_images, training_labels);
 
     dataset_load("test", test_images, test_labels);
-    nn_test(nn, "test", TEST_IMAGES_COUNT, IMAGE_UNIT_LEN, test_images, test_labels);
+    nn_test(nn, "test", TEST_IMAGES_COUNT, test_images, test_labels);
   }
 
   else if ((argc == 5) && (strcmp(argv[1], "-guess") == 0) && (strcmp(argv[3], "-model") == 0)) {
