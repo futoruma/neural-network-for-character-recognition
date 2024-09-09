@@ -1,38 +1,38 @@
-# 手書き数字（0~9）を認識するニューラルネットワーク
+## 手書き数字（0~9）を認識するニューラルネットワーク
 
-## コマンド
+### コマンド
 
-### モデルを訓練して保存する
+#### モデルを訓練して保存する
 
 ```
 ./main -train
 ```
 
-### 指定したモデルをテストする
+#### 指定したモデルをテストする
 
 ```
 ./main -test {model_name}
 ```
 
-### 指定した画像に書かれた数字を指定したモデルで予測する
+#### 指定した画像に書かれた数字を指定したモデルで予測する
 
 ```
 ./main -guess {image_path} -model {model_name}
 ```
 
-### 指定したモデルの重みおよびバイアスの行列を出力する
+#### 指定したモデルの重みおよびバイアスの行列を出力する
 
 ```
 ./main -print {model_name}
 ```
 
-### 指定したモデルをレンダリングして画像ファイルとして保存する
+#### 指定したモデルをレンダリングして画像ファイルとして保存する
 
 ```
 ./main -render {model_name}
 ```
 
-## フォルダ
+### フォルダ
 
 - `render`
   - モデルのレンダリングによって生成された画像ファイル
@@ -45,12 +45,12 @@
 - `training_data`
   - [MNIST 訓練データ](https://yann.lecun.com/exdb/mnist/)
 
-## 依存ライブラリ
+### 依存ライブラリ
 
 - [olivec](https://github.com/tsoding/olive.c)
 - [stb_image_write](https://github.com/nothings/stb/blob/master/stb_image_write.h)
 
-## 参考資料
+### 参考資料
 
 - [Neural Networks and Deep Learning](http://neuralnetworksanddeeplearning.com/index.html)
 - [Neural Networks](https://www.youtube.com/watch?v=aircAruvnKk&list=PLZHQObOWTQDNU6R1_67000Dx_ZCJB-3pi)
