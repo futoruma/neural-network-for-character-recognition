@@ -1,7 +1,10 @@
+main
+
+olive.c
+stb_image_write.h
+
 /render/*
 /samples/*
 /saved_models/*
-/training_data/*
 /test_data/*
-main
-
+/training_data/*

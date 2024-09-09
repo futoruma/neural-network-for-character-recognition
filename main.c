@@ -9,7 +9,7 @@
 #include <unistd.h>
 
 #define DIGITS 10
-#define EPOCHS 2 
+#define EPOCHS 2000 
 #define HIDDEN_LAYERS 48, 24
 #define LEARNING_RATE 0.03f
 #define TRAINING_BATCH 100
@@ -185,7 +185,8 @@ int main(int argc, char *argv[])
     char canvas_filepath[MAX_FILEPATH_LEN];
     snprintf(canvas_filepath, sizeof(canvas_filepath), "%s%s.png", RENDER_PATH, model_name);
 
-    if (!stbi_write_png(canvas_filepath, canvas.width, canvas.height, PNG_CHANNELS, canvas_pixels, canvas.stride * sizeof(uint32_t))) {
+    if (!stbi_write_png(canvas_filepath, canvas.width, canvas.height, PNG_CHANNELS, canvas_pixels,
+    canvas.stride * sizeof(uint32_t))) {
       fprintf(stderr, "Could not save the file.");
       return 1;
     }

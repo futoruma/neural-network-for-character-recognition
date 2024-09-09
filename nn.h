@@ -492,7 +492,8 @@ void nn_train(NN nn, NN gradient, size_t images_count, float images[][IMAGE_UNIT
       char canvas_filepath[MAX_FILEPATH_LEN];
       snprintf(canvas_filepath, sizeof(canvas_filepath), "./render/%04zu.png", e);
 
-      if (!stbi_write_png(canvas_filepath, canvas.width, canvas.height, PNG_CHANNELS, canvas_pixels, canvas.stride * sizeof(uint32_t))) {
+      if (!stbi_write_png(canvas_filepath, canvas.width, canvas.height, PNG_CHANNELS, canvas_pixels, 
+      canvas.stride * sizeof(uint32_t))) {
         fprintf(stderr, "Could not save the file.");
       }
     }
@@ -527,4 +528,3 @@ void nn_zero(NN nn)
 }
 
 #endif // NN_IMPLEMENTATION
-
