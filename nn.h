@@ -528,3 +528,4 @@ void nn_zero(NN nn)
 }
 
 #endif // NN_IMPLEMENTATION
+

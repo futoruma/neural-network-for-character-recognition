@@ -17,7 +17,7 @@
 #### 指定した画像に書かれた数字を指定したモデルで予測する
 
 ```
-./main -guess {image_path} -model {model_name}
+./main -guess {p5_pgm_image_path} -model {model_name}
 ```
 
 #### 指定したモデルの重みおよびバイアスの行列を出力する
